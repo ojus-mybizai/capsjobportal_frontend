@@ -8,6 +8,7 @@ import { commands } from "@/components/command/commandRegistry";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
+import { useMastersStore } from "@/stores/masters";
 import {
   listMaster,
   createMaster,
@@ -21,6 +22,7 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user);
   const setCommandPaletteEnabled = useCommandStore((state) => state.setEnabled);
   const openCommandPalette = useCommandStore((state) => state.open);
+  const setMasterItemsStore = useMastersStore((state) => state.setMasterItems);
 
   const [compactTables, setCompactTables] = useState(false);
   const [showExperimental, setShowExperimental] = useState(false);
@@ -96,6 +98,7 @@ export default function SettingsPage() {
     { value: "degree", label: "Degrees" },
     { value: "location", label: "Locations" },
     { value: "job_category", label: "Job categories" },
+    { value: "company_category", label: "Company categories" },
     { value: "experience_level", label: "Experience levels" },
   ];
 
@@ -109,6 +112,7 @@ export default function SettingsPage() {
       setNewMasterName("");
       const data = await listMaster(masterType);
       setMasterItems(Array.isArray(data) ? data : []);
+      setMasterItemsStore(masterType, Array.isArray(data) ? data : []);
       pushToast({ title: "Created", description: `${name} added to ${masterType}.` });
     } catch (error) {
       pushToast({
@@ -128,6 +132,7 @@ export default function SettingsPage() {
       await updateMaster(masterType, id, { name: trimmed });
       const data = await listMaster(masterType);
       setMasterItems(Array.isArray(data) ? data : []);
+      setMasterItemsStore(masterType, Array.isArray(data) ? data : []);
       pushToast({ title: "Updated", description: "Master item updated." });
     } catch (error) {
       pushToast({
@@ -146,6 +151,10 @@ export default function SettingsPage() {
     try {
       await deleteMaster(masterType, id);
       setMasterItems((items) => items.filter((item) => item.id !== id));
+      setMasterItemsStore(
+        masterType,
+        (Array.isArray(masterItems) ? masterItems : []).filter((item) => item.id !== id)
+      );
       pushToast({ title: "Deleted", description: "Master item removed." });
     } catch (error) {
       pushToast({

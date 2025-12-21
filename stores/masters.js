@@ -47,6 +47,15 @@ export const useMastersStore = create((set, get) => ({
     await Promise.all(MASTER_KEYS.map((key) => get().loadMaster(key)));
   },
 
+  setMasterItems(name, items) {
+    set({
+      masters: {
+        ...get().masters,
+        [name]: Array.isArray(items) ? items : [],
+      },
+    });
+  },
+
   getOptions(name) {
     const items = get().masters[name] || [];
     return items.map((item) => ({
