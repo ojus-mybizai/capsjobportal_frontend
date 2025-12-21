@@ -1,32 +1,62 @@
 @import "tailwindcss";
 
+/* Global theme tokens */
 :root {
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+  --accent-soft: #e7f0ff;
+  --danger: #dc2626;
+  --border: #e2e8f0;
   --bg: #ffffff;
-  --bg-muted: #f7f7f7;
-  --border: #e5e5e5;
-  --text: #1a1a1a;
-  --accent: #2eaadc;
-  --accent-soft: #e1f5fb;
-  --danger: #e54848;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --bg-muted: #f8fafc;
+  --text: #0f172a;
+  --muted-text: #475569;
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
-@theme inline {
-  --color-bg: var(--bg);
-  --color-bg-muted: var(--bg-muted);
-  --color-border-subtle: var(--border);
-  --color-text: var(--text);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
-  --color-danger: var(--danger);
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  background-color: var(--bg-muted);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg-muted);
   color: var(--text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+/* Simple form styling to avoid raw HTML look */
+input,
+select,
+textarea {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+label {
+  font-size: 0.875rem;
+  color: var(--muted-text);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Utility containers */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
 }

@@ -1,12 +1,10 @@
+// Dashboard page reconstructed cleanly
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { useUIStore } from "@/stores/ui";
-import { api } from "@/services/api";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
-import Button from "@/components/ui/Button";
-import Input from "@/components/ui/Input";
 import {
   Bar,
   BarChart,
@@ -19,43 +17,172 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import { api } from "@/services/api";
+import { useUIStore } from "@/stores/ui";
 
+// ---------- helpers ----------
 function computeRangeDates(range) {
   const now = dayjs();
   const today = now.format("YYYY-MM-DD");
-
-  if (range === "today") {
-    return { from: today, to: today };
-  }
-
-  if (range === "this_week") {
-    // dayjs startOf('week') depends on locale; keep default behavior.
-    const from = now.startOf("week").format("YYYY-MM-DD");
-    return { from, to: today };
-  }
-
-  if (range === "this_month") {
-    const from = now.startOf("month").format("YYYY-MM-DD");
-    return { from, to: today };
-  }
-
+  if (range === "today") return { from: today, to: today };
+  if (range === "this_week") return { from: now.startOf("week").format("YYYY-MM-DD"), to: today };
+  if (range === "this_month") return { from: now.startOf("month").format("YYYY-MM-DD"), to: today };
   if (range === "quarter") {
-    const monthIndex = now.month();
-    const quarterStartMonth = Math.floor(monthIndex / 3) * 3;
-    const from = now.month(quarterStartMonth).startOf("month").format("YYYY-MM-DD");
-    return { from, to: today };
+    const qStart = Math.floor(now.month() / 3) * 3;
+    return { from: now.month(qStart).startOf("month").format("YYYY-MM-DD"), to: today };
   }
-
   if (range === "half_year") {
-    const monthIndex = now.month();
-    const startMonth = monthIndex < 6 ? 0 : 6;
-    const from = now.month(startMonth).startOf("month").format("YYYY-MM-DD");
-    return { from, to: today };
+    const startMonth = now.month() < 6 ? 0 : 6;
+    return { from: now.month(startMonth).startOf("month").format("YYYY-MM-DD"), to: today };
   }
-
   return { from: "", to: "" };
 }
 
+function safeNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatCurrency(v = 0) {
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
+      safeNumber(v)
+    );
+  } catch {
+    return `₹${safeNumber(v).toFixed(0)}`;
+  }
+}
+
+function formatCompactCurrency(v = 0) {
+  try {
+    return new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(safeNumber(v));
+  } catch {
+    return safeNumber(v).toFixed(0);
+  }
+}
+
+// ---------- small presentational components ----------
+function FinanceTile({ title, value, loading, highlight }) {
+  return (
+    <div
+      className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--shadow-card)] ${
+        highlight ? "ring-1 ring-[var(--accent)]/70" : "ring-1 ring-slate-200/80"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-8 rounded-full bg-[var(--accent)]/80" />
+        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{title}</div>
+      </div>
+      <div className="mt-3 text-2xl font-semibold text-slate-900">
+        {loading ? "…" : formatCurrency(value ?? 0)}
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsCard({ title, ctaLabel, onView, children }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-slate-200/70">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_4px_rgba(59,130,246,0.08)]" />
+          <div className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-700">{title}</div>
+        </div>
+        {onView ? (
+          <button
+            type="button"
+            onClick={onView}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            {ctaLabel || "View"}
+          </button>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DonutDistribution({ items = [], onSelect }) {
+  const total = useMemo(() => items.reduce((acc, it) => acc + safeNumber(it.value), 0), [items]);
+  const data = items.map((it) => ({ ...it, value: safeNumber(it.value) }));
+  return (
+    <div className="flex items-center gap-4">
+      <div className="h-36 w-36">
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              innerRadius={30}
+              outerRadius={55}
+              paddingAngle={2}
+              onClick={(payload) => onSelect?.(payload)}
+            >
+              {data.map((entry, idx) => (
+                <Cell key={idx} fill={entry.color || "#38bdf8"} stroke="none" />
+              ))}
+            </Pie>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const p = payload[0]?.payload;
+                return (
+                  <div className="rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-100 shadow-lg ring-1 ring-slate-700">
+                    <div className="font-semibold">{p?.label}</div>
+                    <div>Value: {safeNumber(p?.value)}</div>
+                  </div>
+                );
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex-1 space-y-3 rounded-xl border border-slate-200 bg-white/80 p-4 shadow-[var(--shadow-card)] backdrop-blur">
+        {data.map((it) => (
+          <div
+            key={it.label}
+            className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full ring-4 ring-[var(--accent-soft)]/70"
+                style={{ backgroundColor: it.color }}
+              />
+              <div className="flex flex-col">
+                <span className="font-semibold text-slate-900">{it.label}</span>
+                <span className="text-[11px] text-slate-500">Share in mix</span>
+              </div>
+            </div>
+            <div className="text-sm font-semibold text-[var(--accent)]">{safeNumber(it.value)}</div>
+          </div>
+        ))}
+        <div className="flex items-center justify-between rounded-lg border border-[var(--accent-soft)] bg-[var(--accent-soft)]/60 px-3 py-2 text-xs font-semibold text-slate-800 shadow-inner">
+          <span>Total mix</span>
+          <span className="text-[var(--accent)]">{safeNumber(total)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinanceTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0]?.payload;
+  return (
+    <div className="rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-100 shadow-lg ring-1 ring-slate-700">
+      <div className="font-semibold">{p?.period}</div>
+      <div>Company: {formatCurrency(p?.company_payments)}</div>
+      <div>Candidate: {formatCurrency(p?.candidate_payments)}</div>
+      <div>Placement: {formatCurrency(p?.placement_income)}</div>
+      <div className="font-semibold text-[var(--accent)]">Total: {formatCurrency(p?.total)}</div>
+    </div>
+  );
+}
+
+// ---------- main page ----------
 export default function DashboardPage() {
   return (
     <Suspense>
@@ -68,47 +195,25 @@ function DashboardPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  const setPageMetadata = useUIStore((state) => state.setPageMetadata);
-  const pushToast = useUIStore((state) => state.pushToast);
+  const setPageMetadata = useUIStore((s) => s.setPageMetadata);
+  const pushToast = useUIStore((s) => s.pushToast);
 
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingFinance, setLoadingFinance] = useState(true);
+  const [loadingPendingDues, setLoadingPendingDues] = useState(false);
   const [summary, setSummary] = useState(null);
   const [financeItems, setFinanceItems] = useState([]);
+  const [pendingDues, setPendingDues] = useState(null);
 
   const rangeParam = searchParams.get("range") || "";
   const startDateParam = searchParams.get("start_date") || "";
   const endDateParam = searchParams.get("end_date") || "";
-
+  const endOfMonth = dayjs().endOf("month").format("YYYY-MM-DD");
   const selectedRange = rangeParam || "this_month";
+  const [dueBefore, setDueBefore] = useState(endOfMonth);
 
   const customRangeLabel =
-    startDateParam && endDateParam
-      ? `${startDateParam} - ${endDateParam}`
-      : "Custom";
-
-  const rangePillLabel =
-    startDateParam && endDateParam
-      ? `${startDateParam} - ${endDateParam}`
-      : "All time";
-
-  function navigateTo(path, nextParams) {
-    const params = new URLSearchParams();
-    Object.entries(nextParams || {}).forEach(([k, v]) => {
-      if (v == null || v === "") return;
-      params.set(k, String(v));
-    });
-    const qs = params.toString();
-    router.push(qs ? `${path}?${qs}` : path);
-  }
-
-  function getInterviewDateParams() {
-    const params = {};
-    if (startDateParam) params.from_date = startDateParam;
-    if (endDateParam) params.to_date = endDateParam;
-    return params;
-  }
+    startDateParam && endDateParam ? `${startDateParam} - ${endDateParam}` : "Custom";
 
   const [customOpen, setCustomOpen] = useState(false);
   const [customStart, setCustomStart] = useState("");
@@ -132,6 +237,42 @@ function DashboardPageInner() {
     replaceParams({ range, start_date: computed.from, end_date: computed.to });
   }
 
+  async function loadPendingDues(dueDateParam) {
+    const iso =
+      dueDateParam && dayjs(dueDateParam).isValid()
+        ? dayjs(dueDateParam).endOf("day").toISOString()
+        : dayjs().endOf("month").toISOString();
+    setLoadingPendingDues(true);
+    try {
+      const result = await api.get("payments/pending-dues", { params: { due_before: iso } });
+      const items = Array.isArray(result?.data)
+        ? result.data
+        : Array.isArray(result?.items)
+          ? result.items
+          : Array.isArray(result)
+            ? result
+            : [];
+      const totals = items.reduce(
+        (acc, it) => {
+          const bal = Number(it?.balance) || 0;
+          acc.total_due += bal;
+          if (it?.source === "JOC_FEE_PENDING") acc.candidate_due += bal;
+          else acc.company_due += bal;
+          return acc;
+        },
+        { total_due: 0, candidate_due: 0, company_due: 0 }
+      );
+      setPendingDues({ ...totals, items });
+    } catch (error) {
+      pushToast({
+        title: "Failed to load pending dues",
+        description: (error && error.message) || "Could not load pending dues.",
+      });
+    } finally {
+      setLoadingPendingDues(false);
+    }
+  }
+
   function openCustomPicker() {
     const today = dayjs().format("YYYY-MM-DD");
     const initialStart = startDateParam || today;
@@ -143,37 +284,27 @@ function DashboardPageInner() {
 
   useEffect(() => {
     if (!customOpen) return;
-
     function positionPopover() {
       try {
         const anchor = rangeAnchorRef.current;
         const pop = popoverRef.current;
         if (!anchor || !pop) return;
-
         const rect = anchor.getBoundingClientRect();
         const popRect = pop.getBoundingClientRect();
         const margin = 12;
-
         const maxLeft = Math.max(margin, window.innerWidth - popRect.width - margin);
         const left = Math.min(Math.max(rect.left, margin), maxLeft);
-
         const preferBelowTop = rect.bottom + 8;
         const preferAboveTop = rect.top - popRect.height - 8;
-
         let top = preferBelowTop;
-        if (preferBelowTop + popRect.height > window.innerHeight - margin) {
-          top = preferAboveTop;
-        }
-
+        if (preferBelowTop + popRect.height > window.innerHeight - margin) top = preferAboveTop;
         const maxTop = Math.max(margin, window.innerHeight - popRect.height - margin);
         top = Math.min(Math.max(top, margin), maxTop);
-
         setCustomPos({ top, left });
       } catch {
-        // ignore positioning errors
+        // ignore
       }
     }
-
     const id = window.requestAnimationFrame(positionPopover);
     window.addEventListener("resize", positionPopover);
     window.addEventListener("scroll", positionPopover, true);
@@ -191,8 +322,8 @@ function DashboardPageInner() {
   useEffect(() => {
     if (rangeParam) return;
     if (startDateParam || endDateParam) return;
-    // Default range
     applyRange("this_month");
+    loadPendingDues(endOfMonth);
   }, [rangeParam, startDateParam, endDateParam]);
 
   const startDateTime = startDateParam ? `${startDateParam}T00:00:00` : undefined;
@@ -208,18 +339,14 @@ function DashboardPageInner() {
     async function loadSummary() {
       setLoadingSummary(true);
       try {
-        const data = await api.get("reports/dashboard", {
-          params: dateParams,
-        });
+        const data = await api.get("reports/dashboard", { params: dateParams });
         if (!active) return;
         setSummary(data || null);
       } catch (error) {
         if (!active) return;
         pushToast({
           title: "Failed to load dashboard",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading dashboard data.",
+          description: (error && error.message) || "An error occurred while loading dashboard data.",
         });
       } finally {
         if (active) setLoadingSummary(false);
@@ -230,6 +357,10 @@ function DashboardPageInner() {
       active = false;
     };
   }, [dateKey, pushToast]);
+
+  useEffect(() => {
+    loadPendingDues(dueBefore);
+  }, [dueBefore]);
 
   useEffect(() => {
     let active = true;
@@ -246,9 +377,7 @@ function DashboardPageInner() {
         if (!active) return;
         pushToast({
           title: "Failed to load finance breakdown",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading finance chart data.",
+          description: (error && error.message) || "An error occurred while loading finance chart data.",
         });
       } finally {
         if (active) setLoadingFinance(false);
@@ -260,7 +389,6 @@ function DashboardPageInner() {
     };
   }, [dateKey, pushToast]);
 
-  const companiesTotal = safeNumber(summary?.companies?.total);
   const companiesPaid = safeNumber(summary?.companies?.paid);
   const companiesFree = safeNumber(summary?.companies?.free);
 
@@ -290,54 +418,82 @@ function DashboardPageInner() {
   ];
 
   const jobsStatusChart = [
-    { label: "Open", status: "OPEN", value: jobsOpen, color: "#2563eb" },
-    { label: "Fulfilled", status: "FULFILLED", value: jobsFulfilled, color: "#16a34a" },
-    { label: "Dropped", status: "DROPPED", value: jobsDropped, color: "#ef4444" },
+    { label: "Open", status: "OPEN", value: jobsOpen, color: "#60a5fa" },
+    { label: "Fulfilled", status: "FULFILLED", value: jobsFulfilled, color: "#34d399" },
+    { label: "Dropped", status: "DROPPED", value: jobsDropped, color: "#f87171" },
   ];
 
   const candidatesStatusChart = [
-    { label: "Registered", status: "REGISTERED", value: candRegistered, color: "#2563eb" },
-    { label: "CAPS", status: "CAPS", value: candCaps, color: "#16a34a" },
-    { label: "JOC", status: "JOC", value: candJoc, color: "#f59e0b" },
-    { label: "Free", status: "FREE", value: candFree, color: "#64748b" },
+    { label: "Registered", status: "REGISTERED", value: candRegistered, color: "#60a5fa" },
+    { label: "CAPS", status: "CAPS", value: candCaps, color: "#34d399" },
+    { label: "JOC", status: "JOC", value: candJoc, color: "#fbbf24" },
+    { label: "Free", status: "FREE", value: candFree, color: "#cbd5e1" },
   ];
 
   const interviewsStatusChart = [
-    { label: "Scheduled", status: "SCHEDULED", value: intScheduled, color: "#2563eb" },
-    { label: "Joined", status: "JOINED", value: intJoined, color: "#16a34a" },
-    { label: "On hold", status: "ON_HOLD", value: intOnHold, color: "#f59e0b" },
-    {
-      label: "Rejected (Employer)",
-      status: "REJECTED_BY_EMPLOYER",
-      value: intRejectedEmployer,
-      color: "#ef4444",
-    },
-    {
-      label: "Rejected (Candidate)",
-      status: "REJECTED_BY_CANDIDATE",
-      value: intRejectedCandidate,
-      color: "#ef4444",
-    },
+    { label: "Scheduled", status: "SCHEDULED", value: intScheduled, color: "#60a5fa" },
+    { label: "Joined", status: "JOINED", value: intJoined, color: "#34d399" },
+    { label: "On hold", status: "ON_HOLD", value: intOnHold, color: "#fbbf24" },
+    { label: "Rejected (Employer)", status: "REJECTED_BY_EMPLOYER", value: intRejectedEmployer, color: "#f87171" },
+    { label: "Rejected (Candidate)", status: "REJECTED_BY_CANDIDATE", value: intRejectedCandidate, color: "#fb7185" },
   ];
 
+  const financeChartData = useMemo(
+    () =>
+      financeItems.map((it) => ({
+        period: it?.period_label || it?.period || "",
+        company_payments: safeNumber(it?.company_payments),
+        candidate_payments: safeNumber(it?.candidate_payments),
+        placement_income: safeNumber(it?.placement_income),
+        total:
+          safeNumber(it?.company_payments) +
+          safeNumber(it?.candidate_payments) +
+          safeNumber(it?.placement_income),
+      })),
+    [financeItems]
+  );
+
+  function getInterviewDateParams() {
+    return {
+      ...(dateParams.start_date ? { start_date: dateParams.start_date } : {}),
+      ...(dateParams.end_date ? { end_date: dateParams.end_date } : {}),
+    };
+  }
+
+  function navigateTo(path, extras) {
+    const params = new URLSearchParams();
+    Object.entries({ ...extras, ...dateParams }).forEach(([k, v]) => {
+      if (v != null && v !== "") params.set(k, v);
+    });
+    const qs = params.toString();
+    router.push(qs ? `${path}?${qs}` : path);
+  }
+
+  function applyCustomRange() {
+    if (!customStart || !customEnd) return;
+    replaceParams({ range: "custom", start_date: customStart, end_date: customEnd });
+    setCustomOpen(false);
+  }
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-9">
       <div className="px-1">
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">CAPS Tally Jobs</div>
+        <div className="text-[26px] font-semibold tracking-tight text-slate-900">CAPS Tally Jobs</div>
       </div>
 
-      <section className="rounded-2xl bg-[var(--bg)] p-6 shadow-sm ring-1 ring-[var(--border)]">
+      {/* Date range + status distribution */}
+      <section className="rounded-2xl bg-white p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200 text-slate-900">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-sm font-semibold text-slate-900">Date range</div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl bg-[var(--bg-muted)] p-1 ring-1 ring-[var(--border)]">
+            <div className="text-base font-semibold text-slate-900">Date range</div>
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200">
                 <button
                   type="button"
                   className={
                     selectedRange === "today"
-                      ? "rounded-lg bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
+                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
                   }
                   onClick={() => {
                     setCustomOpen(false);
@@ -350,8 +506,8 @@ function DashboardPageInner() {
                   type="button"
                   className={
                     selectedRange === "this_week"
-                      ? "rounded-lg bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
+                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
                   }
                   onClick={() => {
                     setCustomOpen(false);
@@ -364,8 +520,8 @@ function DashboardPageInner() {
                   type="button"
                   className={
                     selectedRange === "this_month"
-                      ? "rounded-lg bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
+                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
                   }
                   onClick={() => {
                     setCustomOpen(false);
@@ -379,8 +535,8 @@ function DashboardPageInner() {
                   ref={rangeAnchorRef}
                   className={
                     selectedRange === "custom"
-                      ? "rounded-lg bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
+                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
                   }
                   onClick={() => {
                     replaceParams({ range: "custom" });
@@ -393,120 +549,26 @@ function DashboardPageInner() {
               </div>
 
               {selectedRange === "custom" ? (
-                <Button type="button" variant="outline" size="sm" onClick={() => openCustomPicker()}>
-                  Edit
-                </Button>
+                <div
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 ring-1 ring-slate-200"
+                  onClick={openCustomPicker}
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    {customRangeLabel}
+                  </span>
+                </div>
               ) : null}
             </div>
           </div>
-
-          <div className="rounded-xl bg-[var(--bg-muted)] px-4 py-3 ring-1 ring-[var(--border)]">
-            <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Showing</div>
-            <div className="mt-1 text-sm font-semibold text-slate-900">{rangePillLabel}</div>
-          </div>
         </div>
 
-        {customOpen ? (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setCustomOpen(false)}
-            />
-            <div
-              className="fixed z-50 w-[92vw] max-w-md rounded-2xl bg-[var(--bg)] p-4 shadow-xl ring-1 ring-[var(--border)]"
-              style={{ top: customPos.top, left: customPos.left }}
-              ref={popoverRef}
-            >
-              <div className="text-sm font-semibold text-slate-800">Custom date range</div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div>
-                  <div className="mb-1 text-xs font-medium text-slate-600">From</div>
-                  <Input
-                    type="date"
-                    value={customStart}
-                    onChange={(e) => setCustomStart(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 text-xs font-medium text-slate-600">To</div>
-                  <Input
-                    type="date"
-                    value={customEnd}
-                    onChange={(e) => setCustomEnd(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCustomOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    replaceParams({ range: "custom", start_date: customStart, end_date: customEnd });
-                    setCustomOpen(false);
-                  }}
-                >
-                  Apply
-                </Button>
-              </div>
-            </div>
-          </>
-        ) : null}
-      </section>
-
-      <section className="space-y-4">
-        <div className="px-1">
-          <div className="text-sm font-semibold text-slate-900">Key metrics</div>
-          <div className="mt-1 text-sm text-slate-600">Executive snapshot</div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-          <SummaryStatCard title="Companies" value={loadingSummary ? "…" : String(companiesTotal)} />
-          <SummaryStatCard title="Open jobs" value={loadingSummary ? "…" : String(jobsOpen)} tone="active" />
-          <SummaryStatCard
-            title="Candidates"
-            value={loadingSummary ? "…" : String(candRegistered + candCaps + candJoc + candFree)}
-          />
-          <SummaryStatCard
-            title="Interviews"
-            value={
-              loadingSummary
-                ? "…"
-                : String(
-                    intScheduled +
-                      intJoined +
-                      intOnHold +
-                      intRejectedEmployer +
-                      intRejectedCandidate
-                  )
-            }
-          />
-          <SummaryStatCard
-            title="Total income"
-            value={loadingSummary ? "…" : formatCurrency(financeTotalIncome)}
-            tone="success"
-          />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="px-1">
-          <div className="text-sm font-semibold text-slate-900">Status distribution</div>
-          <div className="mt-1 text-sm text-slate-600">Hover for details. Click a segment to drill down.</div>
+        <div className="mt-6">
+          <div className="text-base font-semibold text-slate-900">Status distribution</div>
+          <div className="mt-1 text-sm text-slate-500">Hover for details. Click a segment to drill down.</div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <AnalyticsCard
-            title="Companies"
-            ctaLabel="View companies"
-            onView={() => navigateTo("/companies", {})}
-          >
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <AnalyticsCard title="Companies" ctaLabel="View companies" onView={() => navigateTo("/companies", {})}>
             <DonutDistribution
               items={companiesStatusChart}
               onSelect={(it) => navigateTo("/companies", { company_status: it?.status || "" })}
@@ -514,17 +576,10 @@ function DashboardPageInner() {
           </AnalyticsCard>
 
           <AnalyticsCard title="Jobs" ctaLabel="View jobs" onView={() => navigateTo("/jobs", {})}>
-            <DonutDistribution
-              items={jobsStatusChart}
-              onSelect={(it) => navigateTo("/jobs", { status: it?.status || "" })}
-            />
+            <DonutDistribution items={jobsStatusChart} onSelect={(it) => navigateTo("/jobs", { status: it?.status || "" })} />
           </AnalyticsCard>
 
-          <AnalyticsCard
-            title="Candidates"
-            ctaLabel="View candidates"
-            onView={() => navigateTo("/candidates", {})}
-          >
+          <AnalyticsCard title="Candidates" ctaLabel="View candidates" onView={() => navigateTo("/candidates", {})}>
             <DonutDistribution
               items={candidatesStatusChart}
               onSelect={(it) => navigateTo("/candidates", { status: it?.status || "" })}
@@ -539,21 +594,61 @@ function DashboardPageInner() {
             <DonutDistribution
               items={interviewsStatusChart}
               onSelect={(it) =>
-                navigateTo("/interviews", {
-                  status: it?.status || "",
-                  ...getInterviewDateParams(),
-                })
+                navigateTo("/interviews", { status: it?.status || "", ...getInterviewDateParams() })
               }
             />
           </AnalyticsCard>
         </div>
+
+        {customOpen ? (
+          <div
+            ref={popoverRef}
+            style={{ top: customPos.top, left: customPos.left, position: "fixed", zIndex: 50 }}
+            className="w-[320px] rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-2xl"
+          >
+            <div className="mb-3 text-sm font-semibold text-slate-100">Custom range</div>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400" htmlFor="customStart">
+                  Start date
+                </label>
+                <Input
+                  id="customStart"
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="w-full rounded-lg border-slate-800 bg-slate-800/80 text-slate-100"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400" htmlFor="customEnd">
+                  End date
+                </label>
+                <Input
+                  id="customEnd"
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="w-full rounded-lg border-slate-800 bg-slate-800/80 text-slate-100"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" onClick={() => setCustomOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" size="sm" onClick={applyCustomRange}>
+                Apply
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
-      <section className="rounded-2xl bg-[var(--bg-muted)] p-6 ring-1 ring-[var(--border)]">
-        <div className="mb-4 text-sm font-semibold tracking-wide text-slate-700">
-          Finance Summary
-        </div>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+      {/* Finance summary + pending dues */}
+      <section className="rounded-2xl bg-white p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200 text-slate-900">
+        <div className="mb-4 text-base font-semibold tracking-wide text-slate-900">Finance Summary</div>
+        <div className="mb-4 flex flex-wrap items-center gap-2.5">
           <Button
             type="button"
             variant="outline"
@@ -611,306 +706,129 @@ function DashboardPageInner() {
           </Button>
         </div>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <FinanceTile
-            title="Company Payments"
-            value={financeCompanyPayments}
-            loading={loadingSummary}
-          />
-          <FinanceTile
-            title="Candidate Fees"
-            value={financeCandidateFees}
-            loading={loadingSummary}
-          />
-          <FinanceTile
-            title="Placement Income"
-            value={financePlacementIncome}
-            loading={loadingSummary}
-          />
-          <FinanceTile
-            title="Total Income"
-            value={financeTotalIncome}
-            loading={loadingSummary}
-            highlight
-          />
+          <FinanceTile title="Company Payments" value={financeCompanyPayments} loading={loadingSummary} />
+          <FinanceTile title="Candidate Fees" value={financeCandidateFees} loading={loadingSummary} />
+          <FinanceTile title="Placement Income" value={financePlacementIncome} loading={loadingSummary} />
+          <FinanceTile title="Total Income" value={financeTotalIncome} loading={loadingSummary} highlight />
         </div>
       </section>
 
-      <section className="rounded-2xl bg-[var(--bg)] p-6 shadow-sm ring-1 ring-[var(--border)]">
-        <div className="mb-4 flex items-end justify-between gap-4">
+      {/* Pending dues */}
+      <section className="rounded-2xl bg-white p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200 text-slate-900">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-lg font-semibold text-[var(--text)]">
-              Finance Trend
-            </div>
-            <div className="mt-1 text-sm text-slate-600">
-              Monthly breakdown of income streams
-            </div>
+            <div className="text-base font-semibold text-slate-900">Pending dues</div>
+            <div className="text-sm text-slate-500">Track outstanding payments by company and candidates</div>
           </div>
-          {loadingFinance && (
-            <div className="text-sm text-slate-500">Loading chart…</div>
-          )}
-        </div>
-
-        {!loadingFinance && (!financeItems || financeItems.length === 0) ? (
-          <div className="rounded-xl bg-[var(--bg-muted)] p-8 text-center text-sm text-slate-600">
-            No data available
-          </div>
-        ) : (
-          <div className="h-[320px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={(Array.isArray(financeItems) ? financeItems : []).map((it) => ({
-                  period: it?.period || "",
-                  company_payments: safeNumber(it?.company_payments),
-                  candidate_payments: safeNumber(it?.candidate_payments),
-                  placement_income: safeNumber(it?.placement_income),
-                  total: safeNumber(it?.total),
-                }))}
-                margin={{ top: 10, right: 20, bottom: 10, left: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.25)" />
-                <XAxis
-                  dataKey="period"
-                  tick={{ fontSize: 12, fill: "rgb(71,85,105)" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 12, fill: "rgb(71,85,105)" }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={60}
-                  tickFormatter={(v) => formatCompactCurrency(v)}
-                />
-                <Tooltip content={<FinanceTooltip />} />
-                <Bar
-                  dataKey="company_payments"
-                  stackId="a"
-                  fill="#2563eb"
-                  radius={[6, 6, 0, 0]}
-                />
-                <Bar dataKey="candidate_payments" stackId="a" fill="#16a34a" />
-                <Bar dataKey="placement_income" stackId="a" fill="#f59e0b" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function safeNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function formatCurrency(value) {
-  const amount = safeNumber(value);
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return `₹${amount}`;
-  }
-}
-
-function formatCompactCurrency(value) {
-  const amount = safeNumber(value);
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      notation: "compact",
-      compactDisplay: "short",
-      maximumFractionDigits: 1,
-    }).format(amount);
-  } catch {
-    return String(amount);
-  }
-}
-
-function SummaryStatCard({ title, value, tone }) {
-  return (
-    <div className="rounded-2xl bg-[var(--bg)] p-4 ring-1 ring-[var(--border)]">
-      <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">{title}</div>
-      <div
-        className={
-          tone === "success"
-            ? "mt-2 text-2xl font-semibold tracking-tight text-emerald-700"
-            : tone === "active"
-              ? "mt-2 text-2xl font-semibold tracking-tight text-blue-700"
-              : "mt-2 text-2xl font-semibold tracking-tight text-slate-900"
-        }
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsCard({ title, ctaLabel, onView, children }) {
-  return (
-    <div className="rounded-2xl bg-[var(--bg)] p-5 ring-1 ring-[var(--border)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          <div className="mt-1 text-xs text-slate-600">Status distribution</div>
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={onView}>
-          {ctaLabel}
-        </Button>
-      </div>
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
-
-function DonutDistribution({ items, onSelect }) {
-  const safeItems = Array.isArray(items) ? items : [];
-  const total = safeItems.reduce((acc, it) => acc + safeNumber(it?.value), 0);
-  const data = safeItems.map((it) => ({
-    ...it,
-    value: safeNumber(it?.value),
-  }));
-
-  return (
-    <div className="grid items-center gap-4 sm:grid-cols-2">
-      <div className="h-[180px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Tooltip content={<StatusTooltip />} />
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="label"
-              innerRadius={52}
-              outerRadius={74}
-              paddingAngle={2}
-              onClick={(payload) => {
-                const item = payload?.payload;
-                if (!item) return;
-                if (onSelect) onSelect(item);
-              }}
-            >
-              {data.map((entry) => (
-                <Cell key={entry?.status || entry?.label} fill={entry?.color || "#94a3b8"} />
-              ))}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Total</div>
-        <div className="text-2xl font-semibold tracking-tight text-slate-900">{total}</div>
-        <div className="mt-2 grid gap-2">
-          {data.map((it) => (
-            <button
-              key={it?.status || it?.label}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs font-semibold text-slate-600" htmlFor="dueBefore">
+              Due before
+            </label>
+            <Input
+              id="dueBefore"
+              type="date"
+              value={dueBefore}
+              onChange={(e) => setDueBefore(e.target.value)}
+              className="w-44 rounded-lg border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-[var(--accent)] focus:bg-white"
+            />
+            <Button
               type="button"
-              onClick={() => onSelect && onSelect(it)}
-              className="flex items-center justify-between gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-slate-50"
-              title={`${it?.label || ""}: ${safeNumber(it?.value)}`}
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigateTo("/payments/pending", {
+                  due_before: dueBefore,
+                })
+              }
             >
-              <div className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: it?.color || "#94a3b8" }}
-                />
-                <span className="text-sm font-medium text-slate-700">{it?.label}</span>
-              </div>
-              <span className="text-sm font-semibold text-slate-900">{safeNumber(it?.value)}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatusTooltip({ active, payload }) {
-  if (!active || !payload || payload.length === 0) return null;
-  const row = payload[0]?.payload;
-  if (!row) return null;
-  return (
-    <div className="rounded-xl bg-white p-3 shadow-lg ring-1 ring-slate-200">
-      <div className="text-sm font-semibold text-slate-900">{row?.label || ""}</div>
-      <div className="mt-2 flex items-center justify-between gap-4">
-        <span className="text-sm text-slate-700">Count</span>
-        <span className="text-sm font-semibold text-slate-900">{safeNumber(row?.value)}</span>
-      </div>
-      <div className="mt-2 text-xs text-slate-500">Click to drill down</div>
-    </div>
-  );
-}
-
-function FinanceTile({ title, value, loading, highlight }) {
-  return (
-    <div
-      className={
-        highlight
-          ? "rounded-2xl bg-slate-900 p-5 text-white"
-          : "rounded-2xl bg-[var(--bg)] p-5 ring-1 ring-[var(--border)]"
-      }
-    >
-      <div className={highlight ? "text-sm text-slate-200" : "text-sm text-slate-600"}>
-        {title}
-      </div>
-      <div
-        className={
-          highlight
-            ? "mt-2 text-3xl font-semibold tracking-tight"
-            : "mt-2 text-3xl font-semibold tracking-tight text-[var(--text)]"
-        }
-      >
-        {loading ? "…" : formatCurrency(value)}
-      </div>
-    </div>
-  );
-}
-
-function FinanceTooltip({ active, payload, label }) {
-  if (!active || !payload || payload.length === 0) return null;
-
-  const rows = Array.isArray(payload)
-    ? payload
-        .map((p) => ({
-          name: p?.name,
-          value: safeNumber(p?.value),
-          color: p?.color,
-        }))
-        .filter((r) => r.name)
-    : [];
-
-  const total = rows.reduce((acc, r) => acc + safeNumber(r.value), 0);
-
-  return (
-    <div className="rounded-xl bg-white p-3 shadow-lg ring-1 ring-slate-200">
-      <div className="text-sm font-semibold text-slate-900">{label || ""}</div>
-      <div className="mt-2 space-y-1">
-        {rows.map((r) => (
-          <div key={r.name} className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: r.color || "#94a3b8" }}
-              />
-              <span className="text-sm text-slate-700">{r.name}</span>
-            </div>
-            <span className="text-sm font-semibold text-slate-900">
-              {formatCurrency(r.value)}
-            </span>
+              View pending page
+            </Button>
           </div>
-        ))}
-      </div>
-      <div className="mt-3 border-t border-slate-200 pt-2">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-sm font-semibold text-slate-700">Total</span>
-          <span className="text-sm font-semibold text-slate-900">
-            {formatCurrency(total)}
-          </span>
         </div>
-      </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <FinanceTile title="Total Due" value={pendingDues?.total_due} loading={loadingPendingDues} highlight />
+          <FinanceTile title="Candidate Due" value={pendingDues?.candidate_due} loading={loadingPendingDues} />
+          <FinanceTile title="Company Due" value={pendingDues?.company_due} loading={loadingPendingDues} />
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white ring-1 ring-slate-200/70">
+          <div className="grid grid-cols-[1.8fr_1.6fr_1.4fr_1fr_1fr_1.2fr] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
+            <div>Candidate</div>
+            <div>Contact</div>
+            <div>Source</div>
+            <div className="text-right">Amount</div>
+            <div className="text-right">Received</div>
+            <div className="text-right">Balance</div>
+          </div>
+          <div className="divide-y divide-slate-200 bg-white">
+            {(pendingDues?.items || []).map((item) => {
+              const candidateId = item?.candidate_id ? String(item.candidate_id) : "";
+              return (
+                <div
+                  key={`${item?.source || "item"}-${item?.id || item?.company_id || Math.random()}`}
+                  className="grid grid-cols-[1.8fr_1.6fr_1.4fr_1fr_1fr_1.2fr] items-center px-4 py-3 text-sm text-slate-900 hover:bg-slate-50"
+                >
+                  <div className="flex flex-col">
+                    {candidateId ? (
+                      <Link href={`/candidates/${candidateId}`} className="font-semibold text-[var(--accent)] hover:underline">
+                        {item?.candidate_name || "Unknown candidate"}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold">{item?.candidate_name || "Unknown candidate"}</span>
+                    )}
+                  </div>
+                  <div className="text-sm text-slate-600">{item?.candidate_contact_number || "—"}</div>
+                  <div className="text-sm text-slate-600">{item?.source || "Payment"}</div>
+                  <div className="text-right font-semibold text-slate-900">{formatCurrency(item?.total_amount)}</div>
+                  <div className="text-right text-slate-700">{formatCurrency(item?.total_received)}</div>
+                  <div className="text-right font-semibold text-[var(--accent)]">{formatCurrency(item?.balance)}</div>
+                </div>
+              );
+            })}
+            {!pendingDues?.items?.length ? (
+              <div className="px-4 py-6 text-center text-sm text-slate-500">No pending dues for the selected date.</div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Finance trend chart */}
+      <section className="rounded-2xl bg-slate-900/90 p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-800 text-slate-50">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-base font-semibold text-slate-50">Finance trend</div>
+            <div className="text-sm text-slate-400">Monthly totals across company, candidate, and placement income</div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              navigateTo("/payments", {
+                ...dateParams,
+                limit: 50,
+              })
+            }
+          >
+            View finance ledger
+          </Button>
+        </div>
+
+        <div className="mt-4 h-80 w-full">
+          <ResponsiveContainer>
+            <BarChart data={financeChartData} barCategoryGap={24}>
+              <CartesianGrid strokeDasharray="4 4" stroke="#1f2937" />
+              <XAxis dataKey="period" stroke="#cbd5e1" tickLine={false} />
+              <YAxis stroke="#cbd5e1" tickLine={false} axisLine={false} tickFormatter={(v) => formatCompactCurrency(v)} />
+              <Tooltip content={<FinanceTooltip />} />
+              <Bar dataKey="company_payments" name="Company" stackId="a" fill="#60a5fa" />
+              <Bar dataKey="candidate_payments" name="Candidate" stackId="a" fill="#34d399" />
+              <Bar dataKey="placement_income" name="Placement" stackId="a" fill="#fbbf24" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
     </div>
   );
 }

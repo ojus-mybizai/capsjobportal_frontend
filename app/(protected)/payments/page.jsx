@@ -1135,13 +1135,6 @@ function PaymentsPageInner() {
             </label>
           </div>
         </div>
-      </div>
-
-      <div className="rounded-2xl bg-[var(--bg)] p-4 ring-1 ring-[var(--border)]">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Ledger entries</div>
-          {loading ? <div className="text-xs text-slate-500">Loading…</div> : null}
-        </div>
 
         <PaginatedTable
           columns={columns}

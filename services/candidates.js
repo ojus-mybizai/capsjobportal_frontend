@@ -97,6 +97,18 @@ export function updateCandidate(id, payload) {
     .then((result) => ensureObjectData(result, "Failed to update candidate"));
 }
 
+export function changeCandidateStatus(id, payload) {
+  const body = stripEmpty(payload);
+
+  if (USE_MOCK_DATA) {
+    return Promise.resolve({ id, ...body });
+  }
+
+  return api
+    .put(`candidates/${id}/status`, body)
+    .then((result) => ensureObjectData(result, "Failed to update candidate status"));
+}
+
 export function deleteCandidate(id) {
   if (USE_MOCK_DATA) {
     return Promise.resolve({ id });

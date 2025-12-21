@@ -7,9 +7,17 @@ import { useCommandStore } from "@/stores/command";
 import { commands } from "@/components/command/commandRegistry";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import Select from "@/components/ui/Select";
+import {
+  listMaster,
+  createMaster,
+  updateMaster,
+  deleteMaster,
+} from "@/services/masters";
 
 export default function SettingsPage() {
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
+  const pushToast = useUIStore((state) => state.pushToast);
   const user = useAuthStore((state) => state.user);
   const setCommandPaletteEnabled = useCommandStore((state) => state.setEnabled);
   const openCommandPalette = useCommandStore((state) => state.open);
@@ -18,6 +26,11 @@ export default function SettingsPage() {
   const [showExperimental, setShowExperimental] = useState(false);
   const [commandPaletteEnabled, setCommandPaletteEnabledState] = useState(true);
   const [commandFilter, setCommandFilter] = useState("");
+  const [masterType, setMasterType] = useState("skill");
+  const [masterItems, setMasterItems] = useState([]);
+  const [masterLoading, setMasterLoading] = useState(false);
+  const [masterSavingId, setMasterSavingId] = useState(null);
+  const [newMasterName, setNewMasterName] = useState("");
 
   useEffect(() => {
     setPageMetadata("Settings", "User profile and basic preferences");
@@ -50,6 +63,99 @@ export default function SettingsPage() {
     window.localStorage.setItem("caps_settings", JSON.stringify(payload));
     setCommandPaletteEnabled(commandPaletteEnabled);
   }, [compactTables, showExperimental, commandPaletteEnabled, setCommandPaletteEnabled]);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setMasterLoading(true);
+      try {
+        const data = await listMaster(masterType);
+        if (!active) return;
+        setMasterItems(Array.isArray(data) ? data : []);
+      } catch (error) {
+        if (!active) return;
+        pushToast({
+          title: "Failed to load master data",
+          description:
+            (error && error.message) ||
+            `Could not load ${masterType} masters.`,
+        });
+      } finally {
+        if (active) setMasterLoading(false);
+      }
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, [masterType, pushToast]);
+
+  const masterTypes = [
+    { value: "skill", label: "Skills" },
+    { value: "education", label: "Education" },
+    { value: "degree", label: "Degrees" },
+    { value: "location", label: "Locations" },
+    { value: "job_category", label: "Job categories" },
+    { value: "experience_level", label: "Experience levels" },
+  ];
+
+  async function handleCreateMaster(event) {
+    event.preventDefault();
+    const name = (newMasterName || "").trim();
+    if (!name) return;
+    setMasterSavingId("new");
+    try {
+      await createMaster(masterType, { name });
+      setNewMasterName("");
+      const data = await listMaster(masterType);
+      setMasterItems(Array.isArray(data) ? data : []);
+      pushToast({ title: "Created", description: `${name} added to ${masterType}.` });
+    } catch (error) {
+      pushToast({
+        title: "Create failed",
+        description: (error && error.message) || "Could not create master item.",
+      });
+    } finally {
+      setMasterSavingId(null);
+    }
+  }
+
+  async function handleUpdateMaster(id, name) {
+    const trimmed = (name || "").trim();
+    if (!trimmed) return;
+    setMasterSavingId(id);
+    try {
+      await updateMaster(masterType, id, { name: trimmed });
+      const data = await listMaster(masterType);
+      setMasterItems(Array.isArray(data) ? data : []);
+      pushToast({ title: "Updated", description: "Master item updated." });
+    } catch (error) {
+      pushToast({
+        title: "Update failed",
+        description: (error && error.message) || "Could not update master item.",
+      });
+    } finally {
+      setMasterSavingId(null);
+    }
+  }
+
+  async function handleDeleteMaster(id) {
+    const confirm = window.confirm("Delete this item?");
+    if (!confirm) return;
+    setMasterSavingId(id);
+    try {
+      await deleteMaster(masterType, id);
+      setMasterItems((items) => items.filter((item) => item.id !== id));
+      pushToast({ title: "Deleted", description: "Master item removed." });
+    } catch (error) {
+      pushToast({
+        title: "Delete failed",
+        description: (error && error.message) || "Could not delete master item.",
+      });
+    } finally {
+      setMasterSavingId(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -117,24 +223,99 @@ export default function SettingsPage() {
         </div>
 
         <div className="rounded-2xl bg-[var(--bg)] p-4 ring-1 ring-[var(--border)]">
-          <div className="text-sm font-semibold text-slate-900">Command palette</div>
+          <div className="text-sm font-semibold text-slate-900">Master data</div>
           <div className="mt-1 text-xs text-slate-500">
-            Press <span className="font-medium text-slate-700">/</span> to open. Type to search.
+            Create, rename, or delete master values. These power dropdowns across the app.
           </div>
-          <div className="mt-3">
-            <div className="text-[11px] font-medium text-slate-700">Search commands</div>
-            <Input
-              value={commandFilter}
-              onChange={(e) => setCommandFilter(e.target.value)}
-              placeholder="Search (e.g. add job, /adj, payments...)"
-              className="mt-1"
-            />
+
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-slate-700">Master type</div>
+              <Select value={masterType} onChange={(e) => setMasterType(e.target.value)}>
+                {masterTypes.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="md:col-span-2">
+              <form onSubmit={handleCreateMaster} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <div className="text-[11px] font-medium text-slate-700">Add new</div>
+                  <Input
+                    value={newMasterName}
+                    onChange={(e) => setNewMasterName(e.target.value)}
+                    placeholder={`Add ${masterType}...`}
+                  />
+                </div>
+                <Button type="submit" size="sm" disabled={masterSavingId === "new"}>
+                  {masterSavingId === "new" ? "Saving..." : "Add"}
+                </Button>
+              </form>
+            </div>
           </div>
-          <div className="mt-3">
-            <Button type="button" variant="outline" size="sm" onClick={() => openCommandPalette()}>
-              Open command palette
-            </Button>
+
+          <div className="mt-4 space-y-2">
+            {masterLoading ? (
+              <div className="text-xs text-slate-500">Loading {masterType}...</div>
+            ) : masterItems.length === 0 ? (
+              <div className="text-xs text-slate-500">No items found.</div>
+            ) : (
+              <div className="space-y-2">
+                {masterItems.map((item) => (
+                  <div
+                    key={item.id || item.name}
+                    className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-xs"
+                  >
+                    <input
+                      type="text"
+                      defaultValue={item.name || item.label}
+                      className="flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-[12px] font-medium text-slate-800 outline-none focus:border-[var(--accent)]"
+                      onBlur={(e) => {
+                        const next = e.target.value.trim();
+                        if (next && next !== (item.name || item.label)) {
+                          handleUpdateMaster(item.id, next);
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={masterSavingId === item.id}
+                        onClick={() => handleDeleteMaster(item.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-[var(--bg)] p-4 ring-1 ring-[var(--border)]">
+        <div className="text-sm font-semibold text-slate-900">Command palette</div>
+        <div className="mt-1 text-xs text-slate-500">
+          Press <span className="font-medium text-slate-700">/</span> to open. Type to search.
+        </div>
+        <div className="mt-3">
+          <div className="text-[11px] font-medium text-slate-700">Search commands</div>
+          <Input
+            value={commandFilter}
+            onChange={(e) => setCommandFilter(e.target.value)}
+            placeholder="Search (e.g. add job, /adj, payments...)"
+            className="mt-1"
+          />
+        </div>
+        <div className="mt-3">
+          <Button type="button" variant="outline" size="sm" onClick={() => openCommandPalette()}>
+            Open command palette
+          </Button>
         </div>
       </div>
 

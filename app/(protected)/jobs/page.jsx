@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUIStore } from "@/stores/ui";
 import { useMastersStore } from "@/stores/masters";
 import { deleteJob, listJobs } from "@/services/jobs";
-import { getCompany, listCompanies } from "@/services/companies";
+import { listCompanies } from "@/services/companies";
 import PaginatedTable from "@/components/table/PaginatedTable";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -28,6 +28,7 @@ function JobsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
 
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
@@ -37,25 +38,50 @@ function JobsPageInner() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [companyMap, setCompanyMap] = useState({});
-  const [locationMap, setLocationMap] = useState({});
   const [locationOptions, setLocationOptions] = useState([]);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const qParam = searchParams.get("q") || "";
   const statusParam = searchParams.get("status") || "";
+  const jobTypeParam = searchParams.get("job_type") || "";
   const locationAreaIdParam = searchParams.get("location_area_id") || "";
   const companyIdParam = searchParams.get("company_id") || "";
+  const genderParam = searchParams.get("gender") || "";
+  const minSalaryParam = searchParams.get("min_salary") || "";
+  const maxSalaryParam = searchParams.get("max_salary") || "";
+  const vacanciesMinParam = searchParams.get("vacancies_min") || "";
+  const vacanciesMaxParam = searchParams.get("vacancies_max") || "";
+  const createdFromParam = searchParams.get("created_from") || "";
+  const createdToParam = searchParams.get("created_to") || "";
+  const isActiveParam = searchParams.get("is_active") || "";
+  const sortByParam = searchParams.get("sort_by") || "";
+  const orderParam = searchParams.get("order") || "";
+  const skillsParam = searchParams.getAll("skills");
   const pageParamRaw = searchParams.get("page");
   const page = pageParamRaw ? Math.max(1, Number(pageParamRaw) || 1) : 1;
 
+  const filtersKey = [
+    qParam,
+    statusParam,
+    jobTypeParam,
+    genderParam,
+    locationAreaIdParam,
+    companyIdParam,
+    minSalaryParam,
+    maxSalaryParam,
+    vacanciesMinParam,
+    vacanciesMaxParam,
+    createdFromParam,
+    createdToParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+    (skillsParam || []).join(","),
+  ].join("|");
+
   const [query, setQuery] = useState(qParam);
-
-  const companyMapRef = useRef(companyMap);
-
-  useEffect(() => {
-    companyMapRef.current = companyMap;
-  }, [companyMap]);
+  const [skillsText, setSkillsText] = useState((skillsParam || []).join(", "));
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     setPageMetadata("Jobs", "Manage job openings");
@@ -66,31 +92,102 @@ function JobsPageInner() {
   }, [qParam]);
 
   useEffect(() => {
+    setSkillsText((skillsParam || []).join(", "));
+  }, [skillsParam.join("|")]);
+
+  useEffect(() => {
+    const hasAdvanced =
+      !!jobTypeParam ||
+      !!genderParam ||
+      !!minSalaryParam ||
+      !!maxSalaryParam ||
+      !!vacanciesMinParam ||
+      !!vacanciesMaxParam ||
+      !!createdFromParam ||
+      !!createdToParam ||
+      !!isActiveParam ||
+      !!sortByParam ||
+      !!orderParam ||
+      (Array.isArray(skillsParam) && skillsParam.length > 0);
+    if (hasAdvanced) setShowAdvanced(true);
+  }, [
+    jobTypeParam,
+    minSalaryParam,
+    maxSalaryParam,
+    vacanciesMinParam,
+    vacanciesMaxParam,
+    createdFromParam,
+    createdToParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+    skillsParam.join("|"),
+  ]);
+
+  useEffect(() => {
     const t = setTimeout(() => {
       const next = (query || "").trim();
-      const params = new URLSearchParams(searchParams.toString());
+      if (next === (qParam || "")) return;
+      const params = new URLSearchParams(searchParamsString);
       if (next) params.set("q", next);
       else params.delete("q");
       params.set("page", "1");
       const qs = params.toString();
+      if (qs === searchParamsString) return;
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [query, router, pathname, searchParams]);
+  }, [query, router, pathname, searchParamsString]);
 
   function setParam(key, value) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParamsString);
     if (value == null || value === "") params.delete(key);
     else params.set(key, String(value));
     params.set("page", "1");
     const qs = params.toString();
+    if (qs === searchParamsString) return;
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  function setMultiParam(key, values) {
+    const params = new URLSearchParams(searchParamsString);
+    params.delete(key);
+
+    const items = Array.isArray(values) ? values : [];
+    items
+      .map((v) => (v == null ? "" : String(v).trim()))
+      .filter(Boolean)
+      .forEach((v) => params.append(key, v));
+
+    params.set("page", "1");
+    const qs = params.toString();
+    if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
   function clearFilters() {
-    const params = new URLSearchParams(searchParams.toString());
-    ["q", "status", "location_area_id", "company_id", "page"].forEach((k) => params.delete(k));
+    const params = new URLSearchParams(searchParamsString);
+    [
+      "q",
+      "status",
+      "job_type",
+      "gender",
+      "location_area_id",
+      "company_id",
+      "min_salary",
+      "max_salary",
+      "vacancies_min",
+      "vacancies_max",
+      "skills",
+      "created_from",
+      "created_to",
+      "is_active",
+      "sort_by",
+      "order",
+      "page",
+    ].forEach((k) => params.delete(k));
     const qs = params.toString();
+    if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
@@ -129,13 +226,6 @@ function JobsPageInner() {
         if (!active) return;
         const locOptions = getOptions("location_area");
         setLocationOptions(locOptions);
-        const locMap = {};
-        locOptions.forEach((opt) => {
-          if (opt && opt.value != null) {
-            locMap[String(opt.value)] = opt.label;
-          }
-        });
-        setLocationMap(locMap);
       } catch (error) {
         if (!active) return;
         pushToast({
@@ -155,44 +245,6 @@ function JobsPageInner() {
 
   useEffect(() => {
     let active = true;
-
-    async function ensureCompanyLabels() {
-      const ids = Array.from(
-        new Set(
-          (Array.isArray(rows) ? rows : [])
-            .map((r) => (r && r.company_id != null ? String(r.company_id) : ""))
-            .filter(Boolean)
-        )
-      );
-
-      const missing = ids.filter((id) => !companyMapRef.current[id]);
-      if (missing.length === 0) return;
-
-      const updates = {};
-      await Promise.all(
-        missing.map(async (id) => {
-          try {
-            const c = await getCompany(id);
-            updates[id] =
-              c?.name || c?.title || c?.company_name || (id ? `Company #${id}` : "-");
-          } catch {
-            updates[id] = id ? `Company #${id}` : "-";
-          }
-        })
-      );
-
-      if (!active) return;
-      setCompanyMap((prev) => ({ ...prev, ...updates }));
-    }
-
-    ensureCompanyLabels();
-    return () => {
-      active = false;
-    };
-  }, [rows]);
-
-  useEffect(() => {
-    let active = true;
     async function load() {
       setLoading(true);
       try {
@@ -201,8 +253,25 @@ function JobsPageInner() {
           limit: PAGE_SIZE,
           q: qParam || undefined,
           status: statusParam || undefined,
+          job_type: jobTypeParam || undefined,
+          gender: genderParam || undefined,
           location_area_id: locationAreaIdParam || undefined,
           company_id: companyIdParam || undefined,
+          min_salary: minSalaryParam || undefined,
+          max_salary: maxSalaryParam || undefined,
+          vacancies_min: vacanciesMinParam || undefined,
+          vacancies_max: vacanciesMaxParam || undefined,
+          skills: Array.isArray(skillsParam) && skillsParam.length ? skillsParam : undefined,
+          created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
+          created_to: createdToParam ? `${createdToParam}T23:59:59` : undefined,
+          is_active:
+            isActiveParam === "true"
+              ? true
+              : isActiveParam === "false"
+              ? false
+              : undefined,
+          sort_by: sortByParam || undefined,
+          order: orderParam || undefined,
         });
         if (!active) return;
 
@@ -240,7 +309,7 @@ function JobsPageInner() {
     return () => {
       active = false;
     };
-  }, [page, qParam, statusParam, locationAreaIdParam, companyIdParam, refreshTick, pushToast]);
+  }, [page, filtersKey, refreshTick, pushToast]);
 
   async function loadCompanyOptions({ query, limit }) {
     const result = await listCompanies({
@@ -262,14 +331,7 @@ function JobsPageInner() {
 
   async function resolveCompanyLabel({ value }) {
     if (!value) return "";
-    const cached = companyMap && companyMap[String(value)];
-    if (cached) return cached;
-    try {
-      const c = await getCompany(value);
-      return c?.name || c?.title || c?.company_name || `Company #${value}`;
-    } catch {
-      return `Company #${value}`;
-    }
+    return String(value);
   }
 
   function getCompanyOptionLabel(item) {
@@ -289,18 +351,24 @@ function JobsPageInner() {
       label: "Company",
       render: (_value, row) => {
         const id = row && row.company_id != null ? String(row.company_id) : null;
-        // console.log(id, companyMap[id])
-        return (id && companyMap[id]) || "-";
+        const name =
+          (row && (row.company_name || row.company_title || row.company?.name)) || "-";
+        return id ? (
+          <Link href={`/companies/${encodeURIComponent(id)}`} className="text-[var(--accent)] hover:underline">
+            {name}
+          </Link>
+        ) : (
+          name || "-"
+        );
       },
     },
     {
       key: "location_area_id",
       label: "Location",
       render: (_value, row) => {
-        const id = row && row.location_area_id != null  ? String(row.location_area_id) : null;
-        // console.log(id)
-        // console.log(locationMap[id])
-        return (id && locationMap[id]) || "-";
+        return (
+          (row && (row.location_area_name || row.location_area || row.location)) || "-"
+        );
       },
     },
     {
@@ -370,18 +438,19 @@ function JobsPageInner() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-xl bg-[var(--bg)] p-3 ring-1 ring-[var(--border)] md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end">
-          <div className="min-w-[260px]">
+      <div className="rounded-xl bg-[var(--bg)] p-3 ring-1 ring-[var(--border)]">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
+            <div className="min-w-[260px]">
             <div className="mb-1 text-xs font-medium text-slate-600">Search</div>
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search jobs…"
             />
-          </div>
+            </div>
 
-          <div className="min-w-[220px]">
+            <div className="min-w-[220px]">
             <div className="mb-1 text-xs font-medium text-slate-600">Company</div>
             <AsyncSearchSelect
               value={companyIdParam}
@@ -394,9 +463,9 @@ function JobsPageInner() {
               getOptionValue={getCompanyOptionValue}
               allowClear
             />
-          </div>
+            </div>
 
-          <div className="min-w-[180px]">
+            <div className="min-w-[180px]">
             <div className="mb-1 text-xs font-medium text-slate-600">Status</div>
             <Select value={statusParam} onChange={(e) => setParam("status", e.target.value)}>
               <option value="">All</option>
@@ -404,9 +473,30 @@ function JobsPageInner() {
               <option value="FULFILLED">FULFILLED</option>
               <option value="DROPPED">DROPPED</option>
             </Select>
-          </div>
+            </div>
 
-          <div className="min-w-[200px]">
+            <div className="min-w-[180px]">
+              <div className="mb-1 text-xs font-medium text-slate-600">Job type</div>
+              <Select value={jobTypeParam} onChange={(e) => setParam("job_type", e.target.value)}>
+                <option value="">All</option>
+                <option value="FULL_TIME">FULL_TIME</option>
+                <option value="PART_TIME">PART_TIME</option>
+                <option value="INTERNSHIP">INTERNSHIP</option>
+              </Select>
+            </div>
+
+            <div className="min-w-[180px]">
+              <div className="mb-1 text-xs font-medium text-slate-600">Gender</div>
+              <Select value={genderParam} onChange={(e) => setParam("gender", e.target.value)}>
+                <option value="">All</option>
+                <option value="MALE">MALE</option>
+                <option value="FEMALE">FEMALE</option>
+                <option value="OTHER">OTHER</option>
+                <option value="BOTH">BOTH</option>
+              </Select>
+            </div>
+
+            <div className="min-w-[200px]">
             <div className="mb-1 text-xs font-medium text-slate-600">Location</div>
             <Select
               value={locationAreaIdParam}
@@ -419,19 +509,154 @@ function JobsPageInner() {
                 </option>
               ))}
             </Select>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAdvanced((v) => !v)}
+            >
+              {showAdvanced ? "Less filters" : "More filters"}
+            </Button>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setQuery("");
-              clearFilters();
-            }}
-          >
-            Clear
-          </Button>
+          {showAdvanced ? (
+            <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Min salary</div>
+                <Input
+                  value={minSalaryParam}
+                  onChange={(e) => setParam("min_salary", e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Max salary</div>
+                <Input
+                  value={maxSalaryParam}
+                  onChange={(e) => setParam("max_salary", e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Vacancies min</div>
+                <Input
+                  value={vacanciesMinParam}
+                  onChange={(e) => setParam("vacancies_min", e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Vacancies max</div>
+                <Input
+                  value={vacanciesMaxParam}
+                  onChange={(e) => setParam("vacancies_max", e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="min-w-[260px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Skills</div>
+                <Input
+                  value={skillsText}
+                  onChange={(e) => setSkillsText(e.target.value)}
+                  onBlur={() => {
+                    const values = (skillsText || "")
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    setMultiParam("skills", values);
+                  }}
+                  placeholder="e.g. React, SQL, Python"
+                />
+              </div>
+
+              <div className="min-w-[170px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Created from</div>
+                <Input
+                  type="date"
+                  value={createdFromParam}
+                  onChange={(e) => setParam("created_from", e.target.value)}
+                />
+              </div>
+
+              <div className="min-w-[170px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Created to</div>
+                <Input
+                  type="date"
+                  value={createdToParam}
+                  onChange={(e) => setParam("created_to", e.target.value)}
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Active</div>
+                <Select value={isActiveParam} onChange={(e) => setParam("is_active", e.target.value)}>
+                  <option value="">All</option>
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </Select>
+              </div>
+
+              <div className="min-w-[200px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Sort by</div>
+                <Select value={sortByParam} onChange={(e) => setParam("sort_by", e.target.value)}>
+                  <option value="">created_at</option>
+                  <option value="updated_at">updated_at</option>
+                  <option value="title">title</option>
+                  <option value="status">status</option>
+                  <option value="salary_min">salary_min</option>
+                  <option value="salary_max">salary_max</option>
+                  <option value="num_vacancies">num_vacancies</option>
+                </Select>
+              </div>
+
+              <div className="min-w-[140px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Order</div>
+                <Select value={orderParam} onChange={(e) => setParam("order", e.target.value)}>
+                  <option value="">desc</option>
+                  <option value="asc">asc</option>
+                  <option value="desc">desc</option>
+                </Select>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  setSkillsText("");
+                  clearFilters();
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  setSkillsText("");
+                  clearFilters();
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-2 md:justify-end">
@@ -448,9 +673,10 @@ function JobsPageInner() {
         limit={PAGE_SIZE}
         total={total}
         onPageChange={(nextPage) => {
-          const params = new URLSearchParams(searchParams.toString());
+          const params = new URLSearchParams(searchParamsString);
           params.set("page", String(nextPage));
           const qs = params.toString();
+          if (qs === searchParamsString) return;
           router.replace(qs ? `${pathname}?${qs}` : pathname);
         }}
         renderActions={(row) => (

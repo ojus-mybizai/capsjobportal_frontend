@@ -25,6 +25,7 @@ function CandidatesPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
 
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
@@ -38,13 +39,57 @@ function CandidatesPageInner() {
   const [refreshTick, setRefreshTick] = useState(0);
 
   const qParam = searchParams.get("q") || "";
+  const emailParam = searchParams.get("email") || "";
+  const mobileNumberParam = searchParams.get("mobile_number") || "";
   const statusParam = searchParams.get("status") || "";
   const employmentStatusParam = searchParams.get("employment_status") || "";
+  const genderParam = searchParams.get("gender") || "";
+  const qualificationParam = searchParams.get("qualification") || "";
   const locationAreaIdParam = searchParams.get("location_area_id") || "";
+  const expectedSalaryMinParam = searchParams.get("expected_salary_min") || "";
+  const expectedSalaryMaxParam = searchParams.get("expected_salary_max") || "";
+  const experienceMinParam = searchParams.get("experience_min") || "";
+  const experienceMaxParam = searchParams.get("experience_max") || "";
+  const createdFromParam = searchParams.get("created_from") || "";
+  const createdToParam = searchParams.get("created_to") || "";
+  const hasResumeParam = searchParams.get("has_resume") || "";
+  const hasPhotoParam = searchParams.get("has_photo") || "";
+  const isActiveParam = searchParams.get("is_active") || "";
+  const sortByParam = searchParams.get("sort_by") || "";
+  const orderParam = searchParams.get("order") || "";
+  const skillsParam = searchParams.getAll("skills");
   const pageParamRaw = searchParams.get("page");
   const page = pageParamRaw ? Math.max(1, Number(pageParamRaw) || 1) : 1;
 
+  const filtersKey = [
+    qParam,
+    emailParam,
+    mobileNumberParam,
+    statusParam,
+    employmentStatusParam,
+    genderParam,
+    qualificationParam,
+    locationAreaIdParam,
+    expectedSalaryMinParam,
+    expectedSalaryMaxParam,
+    experienceMinParam,
+    experienceMaxParam,
+    createdFromParam,
+    createdToParam,
+    hasResumeParam,
+    hasPhotoParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+    (skillsParam || []).join(","),
+  ].join("|");
+
   const [query, setQuery] = useState(qParam);
+  const [email, setEmail] = useState(emailParam);
+  const [mobileNumber, setMobileNumber] = useState(mobileNumberParam);
+  const [qualification, setQualification] = useState(qualificationParam);
+  const [skillsText, setSkillsText] = useState((skillsParam || []).join(", "));
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [locationOptions, setLocationOptions] = useState([]);
 
   useEffect(() => {
@@ -56,33 +101,174 @@ function CandidatesPageInner() {
   }, [qParam]);
 
   useEffect(() => {
+    setEmail(emailParam);
+  }, [emailParam]);
+
+  useEffect(() => {
+    setMobileNumber(mobileNumberParam);
+  }, [mobileNumberParam]);
+
+  useEffect(() => {
+    setQualification(qualificationParam);
+  }, [qualificationParam]);
+
+  useEffect(() => {
+    setSkillsText((skillsParam || []).join(", "));
+  }, [skillsParam.join("|")]);
+
+  useEffect(() => {
+    const hasAdvanced =
+      !!emailParam ||
+      !!mobileNumberParam ||
+      !!qualificationParam ||
+      !!employmentStatusParam ||
+      !!genderParam ||
+      !!expectedSalaryMinParam ||
+      !!expectedSalaryMaxParam ||
+      !!experienceMinParam ||
+      !!experienceMaxParam ||
+      !!createdFromParam ||
+      !!createdToParam ||
+      !!hasResumeParam ||
+      !!hasPhotoParam ||
+      !!isActiveParam ||
+      !!sortByParam ||
+      !!orderParam ||
+      (Array.isArray(skillsParam) && skillsParam.length > 0);
+    if (hasAdvanced) setShowAdvanced(true);
+  }, [
+    emailParam,
+    mobileNumberParam,
+    qualificationParam,
+    employmentStatusParam,
+    genderParam,
+    expectedSalaryMinParam,
+    expectedSalaryMaxParam,
+    experienceMinParam,
+    experienceMaxParam,
+    createdFromParam,
+    createdToParam,
+    hasResumeParam,
+    hasPhotoParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+    skillsParam.join("|"),
+  ]);
+
+  useEffect(() => {
     const t = setTimeout(() => {
       const next = (query || "").trim();
-      const params = new URLSearchParams(searchParams.toString());
+      if (next === (qParam || "")) return;
+      const params = new URLSearchParams(searchParamsString);
       if (next) params.set("q", next);
       else params.delete("q");
       params.set("page", "1");
       const qs = params.toString();
+      if (qs === searchParamsString) return;
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [query, router, pathname, searchParams]);
+  }, [query, router, pathname, searchParamsString]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = (email || "").trim();
+      if (next === (emailParam || "")) return;
+      const params = new URLSearchParams(searchParamsString);
+      if (next) params.set("email", next);
+      else params.delete("email");
+      params.set("page", "1");
+      const qs = params.toString();
+      if (qs === searchParamsString) return;
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [email, router, pathname, searchParamsString]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = (mobileNumber || "").trim();
+      if (next === (mobileNumberParam || "")) return;
+      const params = new URLSearchParams(searchParamsString);
+      if (next) params.set("mobile_number", next);
+      else params.delete("mobile_number");
+      params.set("page", "1");
+      const qs = params.toString();
+      if (qs === searchParamsString) return;
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [mobileNumber, router, pathname, searchParamsString]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = (qualification || "").trim();
+      if (next === (qualificationParam || "")) return;
+      const params = new URLSearchParams(searchParamsString);
+      if (next) params.set("qualification", next);
+      else params.delete("qualification");
+      params.set("page", "1");
+      const qs = params.toString();
+      if (qs === searchParamsString) return;
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [qualification, router, pathname, searchParamsString]);
 
   function setParam(key, value) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParamsString);
     if (value == null || value === "") params.delete(key);
     else params.set(key, String(value));
     params.set("page", "1");
     const qs = params.toString();
+    if (qs === searchParamsString) return;
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  function setMultiParam(key, values) {
+    const params = new URLSearchParams(searchParamsString);
+    params.delete(key);
+
+    const items = Array.isArray(values) ? values : [];
+    items
+      .map((v) => (v == null ? "" : String(v).trim()))
+      .filter(Boolean)
+      .forEach((v) => params.append(key, v));
+
+    params.set("page", "1");
+    const qs = params.toString();
+    if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
   function clearFilters() {
-    const params = new URLSearchParams(searchParams.toString());
-    ["q", "status", "employment_status", "location_area_id", "page"].forEach((k) =>
-      params.delete(k)
-    );
+    const params = new URLSearchParams(searchParamsString);
+    [
+      "q",
+      "email",
+      "mobile_number",
+      "status",
+      "employment_status",
+      "gender",
+      "qualification",
+      "location_area_id",
+      "expected_salary_min",
+      "expected_salary_max",
+      "experience_min",
+      "experience_max",
+      "skills",
+      "has_resume",
+      "has_photo",
+      "created_from",
+      "created_to",
+      "is_active",
+      "sort_by",
+      "order",
+      "page",
+    ].forEach((k) => params.delete(k));
     const qs = params.toString();
+    if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
@@ -157,9 +343,36 @@ function CandidatesPageInner() {
           page,
           limit: PAGE_SIZE,
           q: qParam || undefined,
+          email: emailParam || undefined,
+          mobile_number: mobileNumberParam || undefined,
           status: statusParam || undefined,
           employment_status: employmentStatusParam || undefined,
+          gender: genderParam || undefined,
+          qualification: qualificationParam || undefined,
           location_area_id: locationAreaIdParam || undefined,
+          expected_salary_min: expectedSalaryMinParam || undefined,
+          expected_salary_max: expectedSalaryMaxParam || undefined,
+          experience_min: experienceMinParam || undefined,
+          experience_max: experienceMaxParam || undefined,
+          skills: Array.isArray(skillsParam) && skillsParam.length ? skillsParam : undefined,
+          has_resume:
+            hasResumeParam === "true"
+              ? true
+              : hasResumeParam === "false"
+              ? false
+              : undefined,
+          has_photo:
+            hasPhotoParam === "true"
+              ? true
+              : hasPhotoParam === "false"
+              ? false
+              : undefined,
+          created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
+          created_to: createdToParam ? `${createdToParam}T23:59:59` : undefined,
+          is_active:
+            isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined,
+          sort_by: sortByParam || undefined,
+          order: orderParam || undefined,
         });
         if (!active) return;
 
@@ -197,7 +410,7 @@ function CandidatesPageInner() {
     return () => {
       active = false;
     };
-  }, [page, qParam, statusParam, locationAreaIdParam, refreshTick, pushToast]);
+  }, [page, filtersKey, refreshTick, pushToast]);
 
   const columns = [
     {
@@ -292,14 +505,33 @@ function CandidatesPageInner() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-xl bg-[var(--bg)] p-3 ring-1 ring-[var(--border)] md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end">
+      <div className="rounded-xl bg-[var(--bg)] p-3 ring-1 ring-[var(--border)]">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
           <div className="min-w-[260px]">
             <div className="mb-1 text-xs font-medium text-slate-600">Search</div>
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search candidates…"
+            />
+          </div>
+
+          <div className="min-w-[240px]">
+            <div className="mb-1 text-xs font-medium text-slate-600">Email</div>
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email contains…"
+            />
+          </div>
+
+          <div className="min-w-[220px]">
+            <div className="mb-1 text-xs font-medium text-slate-600">Mobile</div>
+            <Input
+              value={mobileNumber}
+              onChange={(e) => setMobileNumber(e.target.value)}
+              placeholder="mobile contains…"
             />
           </div>
 
@@ -314,15 +546,26 @@ function CandidatesPageInner() {
             </Select>
           </div>
 
-          <div className="min-w-[200px]">
-            <div className="mb-1 text-xs font-medium text-slate-600">Employment</div>
+          <div className="min-w-[180px]">
+            <div className="mb-1 text-xs font-medium text-slate-600">Employment status</div>
             <Select
               value={employmentStatusParam}
               onChange={(e) => setParam("employment_status", e.target.value)}
             >
               <option value="">All</option>
-              <option value="employed">Employed</option>
-              <option value="unemployed">Unemployed</option>
+              <option value="EMPLOYED">EMPLOYED</option>
+              <option value="UNEMPLOYED">UNEMPLOYED</option>
+            </Select>
+          </div>
+
+          <div className="min-w-[180px]">
+            <div className="mb-1 text-xs font-medium text-slate-600">Gender</div>
+            <Select value={genderParam} onChange={(e) => setParam("gender", e.target.value)}>
+              <option value="">All</option>
+              <option value="MALE">MALE</option>
+              <option value="FEMALE">FEMALE</option>
+              <option value="OTHER">OTHER</option>
+              <option value="BOTH">BOTH</option>
             </Select>
           </div>
 
@@ -345,13 +588,179 @@ function CandidatesPageInner() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              setQuery("");
-              clearFilters();
-            }}
+            onClick={() => setShowAdvanced((v) => !v)}
           >
-            Clear
+            {showAdvanced ? "Less filters" : "More filters"}
           </Button>
+          </div>
+
+          {showAdvanced ? (
+            <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
+              <div className="min-w-[260px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Qualification</div>
+                <Input
+                  value={qualification}
+                  onChange={(e) => setQualification(e.target.value)}
+                  placeholder="e.g. B.Tech"
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Exp min (yrs)</div>
+                <Input
+                  value={experienceMinParam}
+                  onChange={(e) => setParam("experience_min", e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Exp max (yrs)</div>
+                <Input
+                  value={experienceMaxParam}
+                  onChange={(e) => setParam("experience_max", e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="min-w-[170px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Salary min</div>
+                <Input
+                  value={expectedSalaryMinParam}
+                  onChange={(e) => setParam("expected_salary_min", e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="min-w-[170px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Salary max</div>
+                <Input
+                  value={expectedSalaryMaxParam}
+                  onChange={(e) => setParam("expected_salary_max", e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="min-w-[260px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Skills</div>
+                <Input
+                  value={skillsText}
+                  onChange={(e) => setSkillsText(e.target.value)}
+                  onBlur={() => {
+                    const values = (skillsText || "")
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    setMultiParam("skills", values);
+                  }}
+                  placeholder="e.g. React, Excel"
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Has resume</div>
+                <Select value={hasResumeParam} onChange={(e) => setParam("has_resume", e.target.value)}>
+                  <option value="">All</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </Select>
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Has photo</div>
+                <Select value={hasPhotoParam} onChange={(e) => setParam("has_photo", e.target.value)}>
+                  <option value="">All</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </Select>
+              </div>
+
+              <div className="min-w-[170px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Created from</div>
+                <Input
+                  type="date"
+                  value={createdFromParam}
+                  onChange={(e) => setParam("created_from", e.target.value)}
+                />
+              </div>
+
+              <div className="min-w-[170px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Created to</div>
+                <Input
+                  type="date"
+                  value={createdToParam}
+                  onChange={(e) => setParam("created_to", e.target.value)}
+                />
+              </div>
+
+              <div className="min-w-[160px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Active</div>
+                <Select value={isActiveParam} onChange={(e) => setParam("is_active", e.target.value)}>
+                  <option value="">All</option>
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </Select>
+              </div>
+
+              <div className="min-w-[200px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Sort by</div>
+                <Select value={sortByParam} onChange={(e) => setParam("sort_by", e.target.value)}>
+                  <option value="">created_at</option>
+                  <option value="updated_at">updated_at</option>
+                  <option value="full_name">full_name</option>
+                  <option value="expected_salary">expected_salary</option>
+                  <option value="experience_years">experience_years</option>
+                  <option value="status">status</option>
+                  <option value="employment_status">employment_status</option>
+                </Select>
+              </div>
+
+              <div className="min-w-[140px]">
+                <div className="mb-1 text-xs font-medium text-slate-600">Order</div>
+                <Select value={orderParam} onChange={(e) => setParam("order", e.target.value)}>
+                  <option value="">desc</option>
+                  <option value="asc">asc</option>
+                  <option value="desc">desc</option>
+                </Select>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  setEmail("");
+                  setMobileNumber("");
+                  setQualification("");
+                  setSkillsText("");
+                  clearFilters();
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  setEmail("");
+                  setMobileNumber("");
+                  setQualification("");
+                  setSkillsText("");
+                  clearFilters();
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-2 md:justify-end">
@@ -368,9 +777,10 @@ function CandidatesPageInner() {
         limit={PAGE_SIZE}
         total={total}
         onPageChange={(nextPage) => {
-          const params = new URLSearchParams(searchParams.toString());
+          const params = new URLSearchParams(searchParamsString);
           params.set("page", String(nextPage));
           const qs = params.toString();
+          if (qs === searchParamsString) return;
           router.replace(qs ? `${pathname}?${qs}` : pathname);
         }}
         renderActions={(row) => (

@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useUIStore } from "@/stores/ui";
 import { useCandidatesStore } from "@/stores/candidates";
 import CandidateForm from "@/components/forms/CandidateForm";
-import { getCandidate, updateCandidate, uploadCandidateFile } from "@/services/candidates";
+import {
+  getCandidate,
+  updateCandidate,
+  uploadCandidateFile,
+  changeCandidateStatus,
+} from "@/services/candidates";
 import Button from "@/components/ui/Button";
-import PageHeader from "@/components/ui/PageHeader";
-import Tabs from "@/components/ui/Tabs";
+import DetailShell from "@/components/ui/DetailShell";
 import StatusPill from "@/components/ui/StatusPill";
 import Modal from "@/components/ui/Modal";
 import Select from "@/components/ui/Select";
@@ -30,9 +34,15 @@ export default function CandidateDetailPage() {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusValue, setStatusValue] = useState("REGISTERED");
   const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [jocTotalFee, setJocTotalFee] = useState("");
+  const [jocPaymentAmount, setJocPaymentAmount] = useState("");
+  const [jocPaymentDate, setJocPaymentDate] = useState("");
+  const [jocPaymentRemarks, setJocPaymentRemarks] = useState("");
+  const [jocDueDate, setJocDueDate] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [uploadingDocuments, setUploadingDocuments] = useState(false);
+  const [resumeModalOpen, setResumeModalOpen] = useState(false);
 
   const paymentsByCandidateId = useCandidatesStore(
     (state) => state.paymentsByCandidateId
@@ -56,6 +66,86 @@ export default function CandidateDetailPage() {
   const [totalFeeInput, setTotalFeeInput] = useState("");
   const [updatingTotalFee, setUpdatingTotalFee] = useState(false);
 
+  const genderText = (candidate?.gender || "").toString().toUpperCase();
+  const employmentText = (candidate?.employment_status || "")
+    .toString()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/(^\w|\s\w)/g, (m) => m.toUpperCase());
+  const expectedSalaryText =
+    candidate?.expected_salary != null && candidate.expected_salary !== ""
+      ? candidate.expected_salary
+      : null;
+  const dobDisplay = candidate?.dob ? dayjs(candidate.dob).format("YYYY-MM-DD") : "";
+  const ageDisplay =
+    candidate?.age != null
+      ? `${candidate.age} yrs`
+      : candidate?.dob
+      ? `${dayjs().diff(candidate.dob, "year")} yrs`
+      : "";
+
+  const normalizeMedia = (url) => {
+    if (!url || typeof url !== "string") return "";
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    const path = trimmed.startsWith("/media") ? trimmed : trimmed.startsWith("media") ? `/${trimmed}` : trimmed;
+    return `http://localhost:8000${path.startsWith("/") ? "" : "/"}${path}`;
+  };
+
+  const photoSrc = normalizeMedia(candidate?.photo_url || candidate?.photo);
+  const resumeSrc = normalizeMedia(candidate?.resume_url || candidate?.resume || candidate?.resume_link);
+  const isResumeImage =
+    !!resumeSrc && /\.(png|jpe?g|gif|bmp|webp|svg)$/i.test(String(resumeSrc).split("?")[0]);
+
+  const currencyText = (value) => {
+    if (value == null || value === "") return "-";
+    const num = Number(value);
+    if (!Number.isFinite(num)) return String(value);
+    return num.toLocaleString();
+  };
+
+  const renderChips = (items) =>
+    Array.isArray(items) && items.length ? (
+      <div className="flex flex-wrap gap-1">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="rounded-full bg-[var(--bg-muted)] px-2 py-[2px] text-[11px] font-medium text-slate-700"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    ) : (
+      <span className="text-sm text-slate-500">-</span>
+    );
+
+  const displaySkills = useMemo(() => {
+    if (Array.isArray(candidate?.skills_names)) return candidate.skills_names;
+    if (Array.isArray(candidate?.skills)) return candidate.skills;
+    return [];
+  }, [candidate?.skills_names, candidate?.skills]);
+
+  const displayEducation = useMemo(() => {
+    if (Array.isArray(candidate?.education_names)) return candidate.education_names;
+    if (Array.isArray(candidate?.education)) return candidate.education;
+    return [];
+  }, [candidate?.education_names, candidate?.education]);
+
+  const displayDegree = useMemo(() => {
+    if (Array.isArray(candidate?.degree_names)) return candidate.degree_names;
+    if (Array.isArray(candidate?.degree)) return candidate.degree;
+    return [];
+  }, [candidate?.degree_names, candidate?.degree]);
+
+  const allowedNextStatuses = useMemo(() => {
+    const current = (candidate?.status || "REGISTERED").toUpperCase();
+    if (current === "FREE") return ["REGISTERED", "JOC"];
+    if (current === "REGISTERED") return ["JOC", "CAPS"];
+    if (current === "JOC") return ["CAPS"];
+    return [];
+  }, [candidate]);
+
   useEffect(() => {
     setPageMetadata("Candidate details", "View and edit candidate");
   }, [setPageMetadata]);
@@ -68,6 +158,7 @@ export default function CandidateDetailPage() {
       setLoading(true);
       try {
         const data = await getCandidate(id);
+        console.log(data)
         if (!active) return;
         setCandidate(data);
         setStatusValue(data.status || "REGISTERED");
@@ -102,6 +193,7 @@ export default function CandidateDetailPage() {
   useEffect(() => {
     if (!id || !candidate) return;
     if (!isRegistered && !isJoc) return;
+    if (tab !== "payments" && !(tab === "overview" && isJoc)) return;
 
     let active = true;
     async function loadPaymentsSafe() {
@@ -122,7 +214,7 @@ export default function CandidateDetailPage() {
     return () => {
       active = false;
     };
-  }, [id, candidate, isRegistered, isJoc, listPayments, pushToast]);
+  }, [id, candidate, isRegistered, isJoc, tab, listPayments, pushToast]);
 
   const registrationPayment = isRegistered && payments.length > 0 ? payments[0] : null;
 
@@ -153,15 +245,18 @@ export default function CandidateDetailPage() {
         alternate_mobile_number: candidate.alternate_mobile_number || "",
         address: candidate.address || "",
         location_area_id: candidate.location_area_id || "",
-        experience_years:
-          candidate.experience_years != null
-            ? String(candidate.experience_years)
-            : "",
+        experience_level: candidate.experience_level || "",
         applied_job_id: candidate.applied_job_id || "",
         status: candidate.status || "REGISTERED",
+        employment_status: candidate.employment_status || "",
+        gender: candidate.gender || "",
+        expected_salary:
+          candidate.expected_salary != null ? String(candidate.expected_salary) : "",
+        dob: candidate.dob || "",
         reference: candidate.reference || "",
         skills: Array.isArray(candidate.skills) ? candidate.skills : [],
         education: Array.isArray(candidate.education) ? candidate.education : [],
+        degree: Array.isArray(candidate.degree) ? candidate.degree : [],
         created_at: candidate.created_at || "",
       }
     : null;
@@ -177,9 +272,9 @@ export default function CandidateDetailPage() {
         ? values.education.filter((item) => !!item && String(item).trim())
         : [];
 
-      const expYears = values.experience_years
-        ? Number(values.experience_years)
-        : undefined;
+      const degreeArray = Array.isArray(values.degree)
+        ? values.degree.filter((item) => !!item && String(item).trim())
+        : [];
 
       const payload = {
         full_name: values.full_name,
@@ -188,12 +283,20 @@ export default function CandidateDetailPage() {
         alternate_mobile_number: values.alternate_mobile_number || undefined,
         address: values.address || undefined,
         location_area_id: values.location_area_id || undefined,
-        experience_years:
-          Number.isFinite(expYears) && expYears >= 0 ? expYears : undefined,
+        experience_level: values.experience_level || undefined,
+        employment_status: values.employment_status || undefined,
+        gender: values.gender || undefined,
+        expected_salary: values.expected_salary
+          ? Number(values.expected_salary)
+          : undefined,
+        dob: values.dob || undefined,
         reference: values.reference || undefined,
         skills: skillsArray.length > 0 ? skillsArray : undefined,
         education: educationArray.length > 0 ? educationArray : undefined,
+        degree: degreeArray.length > 0 ? degreeArray : undefined,
       };
+
+      console.log(payload)
 
       const updated = await updateCandidate(id, payload);
       setCandidate(updated);
@@ -238,14 +341,75 @@ export default function CandidateDetailPage() {
   function openStatusModal() {
     if (!candidate) return;
     setStatusValue(candidate.status || "REGISTERED");
+    setJocTotalFee(
+      candidate && typeof candidate.total_fee === "number"
+        ? String(candidate.total_fee)
+        : ""
+    );
+    setJocPaymentAmount("");
+    setJocPaymentDate("");
+    setJocPaymentRemarks("");
+    setJocDueDate(
+      candidate?.fee_structure && candidate.fee_structure.due_date
+        ? dayjs(candidate.fee_structure.due_date).format("YYYY-MM-DD")
+        : ""
+    );
     setStatusModalOpen(true);
   }
 
   async function handleStatusSave() {
     if (!id) return;
+    if (!allowedNextStatuses.includes(statusValue)) {
+      pushToast({
+        title: "Status not allowed",
+        description: "This transition is not permitted from the current status.",
+      });
+      return;
+    }
+    if (statusValue === "JOC") {
+      const totalFeeNum = Number(jocTotalFee);
+      const payAmountNum = Number(jocPaymentAmount);
+      if (!Number.isFinite(totalFeeNum) || totalFeeNum <= 0) {
+        pushToast({
+          title: "Total fee required",
+          description: "Enter a valid positive total fee before moving to JOC.",
+        });
+        return;
+      }
+      if (!Number.isFinite(payAmountNum) || payAmountNum <= 0) {
+        pushToast({
+          title: "Initial payment required",
+          description: "Enter a valid initial payment amount.",
+        });
+        return;
+      }
+      if (!jocPaymentDate) {
+        pushToast({
+          title: "Payment date required",
+          description: "Select an initial payment date.",
+        });
+        return;
+      }
+    }
     setStatusSubmitting(true);
     try {
-      const updated = await updateCandidate(id, { status: statusValue });
+      const payload =
+        statusValue === "JOC"
+          ? {
+              status: statusValue,
+              fee_structure: {
+                total_fee: Number(jocTotalFee),
+                due_date: jocDueDate ? new Date(jocDueDate).toISOString() : undefined,
+              },
+              initial_payment: {
+                amount: Number(jocPaymentAmount),
+                payment_date: new Date(jocPaymentDate).toISOString(),
+                remarks: jocPaymentRemarks || undefined,
+              },
+            }
+          : { status: statusValue };
+
+      const updated = await changeCandidateStatus(id, payload);
       setCandidate(updated);
       pushToast({
         title: "Candidate status updated",
@@ -560,14 +724,41 @@ export default function CandidateDetailPage() {
   }
 
   if (loading) {
-    return <p className="text-xs text-slate-500">Loading candidate...</p>;
+    return (
+      <DetailShell
+        title="Candidate"
+        subtitle="Candidate record"
+        loading
+        loadingTitle="Loading candidate..."
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "documents", label: "Documents" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
+      />
+    );
   }
 
   if (!candidate || !infoInitialValues) {
     return (
-      <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--danger)]">
-        Candidate not found.
-      </div>
+      <DetailShell
+        title="Candidate"
+        subtitle="Candidate record"
+        notFound
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "documents", label: "Documents" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
+      />
     );
   }
 
@@ -587,11 +778,20 @@ export default function CandidateDetailPage() {
   }));
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <PageHeader
+    <>
+      <DetailShell
         title={candidate.full_name || candidate.name || "Candidate"}
         subtitle={candidate.mobile_number || candidate.email || "Candidate record"}
         statusSlot={candidate.status ? <StatusPill status={candidate.status} /> : null}
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "documents", label: "Documents" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
         actions={
           <>
             <Button type="button" variant="outline" onClick={() => setTab("edit")}>
@@ -603,27 +803,75 @@ export default function CandidateDetailPage() {
             <Button type="button" variant="outline" onClick={() => setTab("payments")}>
               Payments
             </Button>
-            <Button variant="ghost" onClick={() => router.back()}>
-              Back
-            </Button>
           </>
         }
-      />
-
-      <Tabs
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: "overview", label: "Overview" },
-          { value: "edit", label: "Edit" },
-          { value: "documents", label: "Documents" },
-          { value: "payments", label: "Payments" },
-        ]}
-      />
+      >
 
       {tab === "overview" ? (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
-          <div className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-16 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-muted)]">
+                {photoSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoSrc}
+                    alt="Candidate photo"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-500">
+                    No photo
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col">
+                <div className="text-sm font-semibold text-slate-900">
+                  {candidate.full_name || candidate.name || "Candidate"}
+                </div>
+                <div className="text-[11px] text-slate-600">
+                  {candidate.mobile_number || candidate.email || "Candidate record"}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {resumeSrc ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => setResumeModalOpen(true)}>
+                  View resume
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" size="sm" onClick={() => setTab("documents")}>
+                Documents
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+              <div className="text-[10px] text-slate-500">Status</div>
+              <div className="text-sm font-semibold text-slate-900">{candidate.status || "-"}</div>
+            </div>
+            <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+              <div className="text-[10px] text-slate-500">Employment</div>
+              <div className="text-sm font-semibold text-slate-900">
+                {employmentText || "-"}
+              </div>
+            </div>
+            <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+              <div className="text-[10px] text-slate-500">Gender</div>
+              <div className="text-sm font-semibold text-slate-900">
+                {genderText || "-"}
+              </div>
+            </div>
+            <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+              <div className="text-[10px] text-slate-500">Expected salary</div>
+              <div className="text-sm font-semibold text-slate-900">
+                {expectedSalaryText != null ? currencyText(expectedSalaryText) : "-"}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
             <div>
               <div className="text-xs font-semibold text-slate-600">Mobile</div>
               <div className="mt-1 text-sm font-medium text-slate-900">
@@ -642,30 +890,92 @@ export default function CandidateDetailPage() {
                 {candidate.location_area_name || candidate.location || candidate.location_area_id || "-"}
               </div>
             </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-600">Created</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {candidate.created_at ? dayjs(candidate.created_at).format("YYYY-MM-DD") : "-"}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div>
+              <div className="text-xs font-semibold text-slate-600">DOB</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">{dobDisplay || "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-600">Age</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">{ageDisplay || "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-600">Experience level</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {candidate.experience_level || "-"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-600">Reference</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {candidate.reference || "-"}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-slate-600">Skills</div>
+              {renderChips(displaySkills)}
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-slate-600">Education</div>
+              {renderChips(displayEducation)}
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-slate-600">Degree</div>
+              {renderChips(displayDegree)}
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-slate-600">Applied job</div>
+              <div className="mt-1 text-sm font-medium text-[var(--accent)]">
+                {candidate.applied_job_id ? (
+                  <a
+                    href={`/jobs/${candidate.applied_job_id}`}
+                    className="hover:underline"
+                  >
+                    View job #{candidate.applied_job_id}
+                  </a>
+                ) : (
+                  <span className="text-slate-500">-</span>
+                )}
+              </div>
+            </div>
           </div>
 
           {candidate.status === "JOC" ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
                 <div className="text-[10px] text-slate-500">Total fee</div>
                 <div className="text-lg font-bold text-slate-900">
-                  {candidate.total_fee != null ? candidate.total_fee : "-"}
+                  {candidate.total_fee != null ? currencyText(candidate.total_fee) : "-"}
                 </div>
               </div>
               <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
                 <div className="text-[10px] text-slate-500">Total received</div>
-                <div className="text-lg font-bold text-slate-900">{totalReceived}</div>
+                <div className="text-lg font-bold text-emerald-700">{currencyText(totalReceived)}</div>
               </div>
               <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
                 <div className="text-[10px] text-slate-500">Balance pending</div>
-                <div className="text-lg font-bold text-slate-900">
-                  {candidate.balance != null ? candidate.balance : "-"}
+                <div className="text-lg font-bold text-amber-700">
+                  {candidate.balance != null ? currencyText(candidate.balance) : "-"}
                 </div>
               </div>
             </div>
           ) : null}
 
-          <div className="mt-4">
+          <div className="space-y-1">
             <div className="text-xs font-semibold text-slate-600">Address</div>
             <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
               {candidate.address || "-"}
@@ -918,6 +1228,36 @@ export default function CandidateDetailPage() {
         )
       ) : null}
 
+      </DetailShell>
+
+      <Modal
+        open={resumeModalOpen}
+        onClose={() => setResumeModalOpen(false)}
+        title="Resume"
+        size="lg"
+      >
+        {resumeSrc ? (
+          <div className="h-[70vh]">
+            {isResumeImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={resumeSrc}
+                alt="Resume"
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <iframe
+                src={resumeSrc}
+                title="Resume preview"
+                className="h-full w-full rounded-md border border-[var(--border)]"
+              />
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-slate-700">Resume not available.</div>
+        )}
+      </Modal>
+
       <Modal
         open={statusModalOpen}
         onClose={() => setStatusModalOpen(false)}
@@ -927,17 +1267,76 @@ export default function CandidateDetailPage() {
         <div className="space-y-3">
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-slate-700">Status</label>
-            <Select value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
-              <option value="REGISTERED">REGISTERED</option>
-              <option value="CAPS">CAPS</option>
-              <option value="JOC">JOC</option>
-              <option value="FREE">FREE</option>
+            <Select
+              value={statusValue}
+              onChange={(e) => setStatusValue(e.target.value)}
+            >
+              <option value="">Select</option>
+              {allowedNextStatuses.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
             </Select>
           </div>
 
           {statusValue === "JOC" ? (
-            <div className="rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/5 px-3 py-2 text-xs text-[var(--danger)]">
-              Moving to <span className="font-semibold">JOC</span> enables fee tracking and payments. Confirm carefully.
+            <div className="space-y-3 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-xs text-slate-800">
+              <p className="text-[var(--danger)] font-semibold">
+                Moving to JOC requires fee and initial payment details.
+              </p>
+              <div className="grid gap-3 md:grid-cols-3 text-[11px]">
+                <div className="space-y-1">
+                  <label className="block font-semibold text-slate-700">Total fee *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={jocTotalFee}
+                    onChange={(e) => setJocTotalFee(e.target.value)}
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-semibold text-slate-700">Initial payment *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={jocPaymentAmount}
+                    onChange={(e) => setJocPaymentAmount(e.target.value)}
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-semibold text-slate-700">Payment date *</label>
+                  <input
+                    type="datetime-local"
+                    value={jocPaymentDate}
+                    onChange={(e) => setJocPaymentDate(e.target.value)}
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-semibold text-slate-700">Fee due date (optional)</label>
+                  <input
+                    type="date"
+                    value={jocDueDate}
+                    onChange={(e) => setJocDueDate(e.target.value)}
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1 text-[11px]">
+                <label className="block font-semibold text-slate-700">Remarks</label>
+                <input
+                  type="text"
+                  value={jocPaymentRemarks}
+                  onChange={(e) => setJocPaymentRemarks(e.target.value)}
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
+                  placeholder="Optional"
+                />
+              </div>
             </div>
           ) : (
             <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-xs text-slate-700">
@@ -952,7 +1351,15 @@ export default function CandidateDetailPage() {
             <Button
               type="button"
               variant="outline"
-              disabled={statusSubmitting}
+              disabled={
+                statusSubmitting ||
+                (statusValue === "JOC" &&
+                  (!Number.isFinite(Number(jocTotalFee)) ||
+                    Number(jocTotalFee) <= 0 ||
+                    !Number.isFinite(Number(jocPaymentAmount)) ||
+                    Number(jocPaymentAmount) <= 0 ||
+                    !jocPaymentDate))
+              }
               onClick={async () => {
                 await handleStatusSave();
                 setStatusModalOpen(false);
@@ -963,6 +1370,6 @@ export default function CandidateDetailPage() {
           </div>
         </div>
       </Modal>
-    </div>
+    </>
   );
 }

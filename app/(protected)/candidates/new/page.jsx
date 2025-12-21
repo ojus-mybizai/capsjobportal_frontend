@@ -34,9 +34,9 @@ export default function NewCandidatePage() {
         ? values.education.filter((item) => !!item && String(item).trim())
         : [];
 
-      const expYears = values.experience_years
-        ? Number(values.experience_years)
-        : undefined;
+      const degreeArray = Array.isArray(values.degree)
+        ? values.degree.filter((item) => !!item && String(item).trim())
+        : [];
 
       const basePayload = {
         full_name: values.full_name,
@@ -45,13 +45,19 @@ export default function NewCandidatePage() {
         alternate_mobile_number: values.alternate_mobile_number || undefined,
         address: values.address || undefined,
         location_area_id: values.location_area_id || undefined,
-        experience_years:
-          Number.isFinite(expYears) && expYears >= 0 ? expYears : undefined,
+        experience_level: values.experience_level || undefined,
         applied_job_id: values.applied_job_id || undefined,
         reference: values.reference || undefined,
         status: values.status,
+        employment_status: values.employment_status || undefined,
+        gender: values.gender || undefined,
+        expected_salary: values.expected_salary
+          ? Number(values.expected_salary)
+          : undefined,
+        dob: values.dob || undefined,
         skills: skillsArray.length > 0 ? skillsArray : undefined,
         education: educationArray.length > 0 ? educationArray : undefined,
+        degree: degreeArray.length > 0 ? degreeArray : undefined,
       };
 
       const payload = { ...basePayload };

@@ -71,7 +71,7 @@ export function getCompany(id) {
 
   return api
     .get(`companies/${id}`)
-    .then((payload) => ensureObjectData(payload, "Failed to load company"));
+    .then((payload) => ensureObjectData(payload, "Failed to load company"))
 }
 
 export function getPublicCompany(userUuid, companyUuid) {
@@ -148,19 +148,25 @@ export function listCompanyPayments(companyId, params = {}) {
 
   return api
     .get(`companies/${companyId}/payments`, { params })
-    .then((payload) => ensurePagedResult(payload, "Failed to load company payments"));
+    .then((payload) => {
+      const result = ensurePagedResult(payload, "Failed to load company payments");
+      const items = Array.isArray(result.items) ? result.items.map(normalizePayment) : [];
+      return { ...result, items };
+    });
 }
 
 export function createCompanyPayment(companyId, payload) {
   const body = stripEmpty(payload);
 
   if (USE_MOCK_DATA) {
-    return Promise.resolve({ id: Date.now(), company_id: companyId, ...body });
+    return Promise.resolve(normalizePayment({ id: Date.now(), company_id: companyId, ...body }));
   }
 
   return api
     .post(`companies/${companyId}/payments`, body)
-    .then((result) => ensureObjectData(result, "Failed to create company payment"));
+    .then((result) =>
+      normalizePayment(ensureObjectData(result, "Failed to create company payment"))
+    );
 }
 
 export function updateCompanyPayment(paymentId, payload) {

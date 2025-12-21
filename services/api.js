@@ -7,9 +7,44 @@ const secureCookies =
   process.env.NEXT_PUBLIC_SECURE_AUTH_COOKIES === "true" ||
   process.env.SECURE_AUTH_COOKIES === "true";
 
+function serializeParams(params) {
+  const sp = new URLSearchParams();
+  if (!params || typeof params !== "object") return sp.toString();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (!key) continue;
+    if (value == null || value === "") continue;
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item == null || item === "") return;
+        sp.append(key, String(item));
+      });
+      continue;
+    }
+
+    if (value instanceof Date) {
+      sp.append(key, value.toISOString());
+      continue;
+    }
+
+    if (typeof value === "object") {
+      sp.append(key, JSON.stringify(value));
+      continue;
+    }
+
+    sp.append(key, String(value));
+  }
+
+  return sp.toString();
+}
+
 export const api = axios.create({
   baseURL,
   withCredentials: secureCookies,
+  paramsSerializer: {
+    serialize: serializeParams,
+  },
 });
 
 let getAccessToken;

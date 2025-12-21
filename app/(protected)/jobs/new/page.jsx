@@ -39,9 +39,16 @@ export default function NewJobPage() {
         ? values.education.filter((item) => !!item && String(item).trim())
         : [];
 
+      const degreeArray = Array.isArray(values.degree)
+        ? values.degree.filter((item) => !!item && String(item).trim())
+        : [];
+
       const payload = {
         title: values.title,
         company_id: values.company_id,
+        job_type: values.job_type || undefined,
+        status: values.status || undefined,
+        gender: values.gender || undefined,
         num_vacancies:
           Number.isFinite(numVacancies) && numVacancies > 0
             ? numVacancies
@@ -51,9 +58,9 @@ export default function NewJobPage() {
         salary_max:
           Number.isFinite(salaryMax) && salaryMax >= 0 ? salaryMax : undefined,
         experience_level: values.experience_level || undefined,
-        employment_type: values.employment_type || undefined,
         skills: skillsArray.length > 0 ? skillsArray : undefined,
         education: educationArray.length > 0 ? educationArray : undefined,
+        degree: degreeArray.length > 0 ? degreeArray : undefined,
         location_area_id: values.location_area_id || undefined,
         description: values.description || undefined,
         responsibilities: values.responsibilities || undefined,

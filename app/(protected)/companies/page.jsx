@@ -27,6 +27,7 @@ function CompaniesPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
 
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
@@ -38,13 +39,42 @@ function CompaniesPageInner() {
 
   const qParam = searchParams.get("q") || "";
   const companyStatusParam = searchParams.get("company_status") || "";
-  const verificationStatusParam = searchParams.get("verification_status") || "";
+  const verificationStatusParam =
+    searchParams.get("verification_status") || searchParams.get("is_verified") || "";
   const categoryIdParam = searchParams.get("category_id") || "";
   const locationAreaIdParam = searchParams.get("location_area_id") || "";
+  const createdByParam = searchParams.get("created_by") || "";
+  const emailParam = searchParams.get("email") || "";
+  const contactNumberParam = searchParams.get("contact_number") || "";
+  const createdFromParam = searchParams.get("created_from") || "";
+  const createdToParam = searchParams.get("created_to") || "";
+  const isActiveParam = searchParams.get("is_active") || "";
+  const sortByParam = searchParams.get("sort_by") || "";
+  const orderParam = searchParams.get("order") || "";
   const pageParamRaw = searchParams.get("page");
   const page = pageParamRaw ? Math.max(1, Number(pageParamRaw) || 1) : 1;
 
+  const filtersKey = [
+    qParam,
+    companyStatusParam,
+    verificationStatusParam,
+    categoryIdParam,
+    locationAreaIdParam,
+    createdByParam,
+    emailParam,
+    contactNumberParam,
+    createdFromParam,
+    createdToParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+  ].join("|");
+
   const [query, setQuery] = useState(qParam);
+  const [email, setEmail] = useState(emailParam);
+  const [contactNumber, setContactNumber] = useState(contactNumberParam);
+  const [createdBy, setCreatedBy] = useState(createdByParam);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
@@ -63,25 +93,108 @@ function CompaniesPageInner() {
   }, [qParam]);
 
   useEffect(() => {
+    setEmail(emailParam);
+  }, [emailParam]);
+
+  useEffect(() => {
+    setContactNumber(contactNumberParam);
+  }, [contactNumberParam]);
+
+  useEffect(() => {
+    setCreatedBy(createdByParam);
+  }, [createdByParam]);
+
+  useEffect(() => {
+    const hasAdvanced =
+      !!emailParam ||
+      !!contactNumberParam ||
+      !!createdByParam ||
+      !!createdFromParam ||
+      !!createdToParam ||
+      !!isActiveParam ||
+      !!sortByParam ||
+      !!orderParam;
+    if (hasAdvanced) setShowAdvanced(true);
+  }, [
+    emailParam,
+    contactNumberParam,
+    createdByParam,
+    createdFromParam,
+    createdToParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+  ]);
+
+  useEffect(() => {
     const t = setTimeout(() => {
       const next = (query || "").trim();
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParamsString);
       if (next) params.set("q", next);
       else params.delete("q");
       params.set("page", "1");
 
       const qs = params.toString();
+      if (qs === searchParamsString) return;
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, router, pathname, searchParamsString]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = (email || "").trim();
+      const params = new URLSearchParams(searchParamsString);
+      if (next) params.set("email", next);
+      else params.delete("email");
+      params.set("page", "1");
+      const qs = params.toString();
+      if (qs === searchParamsString) return;
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [email, router, pathname, searchParamsString]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = (contactNumber || "").trim();
+      const params = new URLSearchParams(searchParamsString);
+      if (next) params.set("contact_number", next);
+      else params.delete("contact_number");
+      params.set("page", "1");
+      const qs = params.toString();
+      if (qs === searchParamsString) return;
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [contactNumber, router, pathname, searchParamsString]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = (createdBy || "").trim();
+      const params = new URLSearchParams(searchParamsString);
+      if (next) params.set("created_by", next);
+      else params.delete("created_by");
+      params.set("page", "1");
+      const qs = params.toString();
+      if (qs === searchParamsString) return;
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [createdBy, router, pathname, searchParamsString]);
 
   function setParam(key, value) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParamsString);
     if (value == null || value === "") params.delete(key);
     else params.set(key, String(value));
+
+    if (key === "verification_status") {
+      params.delete("is_verified");
+    }
+
     params.set("page", "1");
     const qs = params.toString();
+    if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
@@ -111,16 +224,26 @@ function CompaniesPageInner() {
   }
 
   function clearFilters() {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParamsString);
     [
       "q",
       "company_status",
       "verification_status",
+      "is_verified",
       "category_id",
       "location_area_id",
+      "created_by",
+      "email",
+      "contact_number",
+      "created_from",
+      "created_to",
+      "is_active",
+      "sort_by",
+      "order",
       "page",
     ].forEach((k) => params.delete(k));
     const qs = params.toString();
+    if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
@@ -142,6 +265,15 @@ function CompaniesPageInner() {
               : false,
           category_id: categoryIdParam || undefined,
           location_area_id: locationAreaIdParam || undefined,
+          created_by: createdByParam || undefined,
+          email: emailParam || undefined,
+          contact_number: contactNumberParam || undefined,
+          created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
+          created_to: createdToParam ? `${createdToParam}T23:59:59` : undefined,
+          is_active:
+            isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined,
+          sort_by: sortByParam || undefined,
+          order: orderParam || undefined,
         });
         if (!active) return;
 
@@ -179,7 +311,7 @@ function CompaniesPageInner() {
     return () => {
       active = false;
     };
-  }, [page, qParam, companyStatusParam, verificationStatusParam, categoryIdParam, locationAreaIdParam, refreshTick, pushToast]);
+  }, [page, filtersKey, refreshTick, pushToast]);
 
   const columns = [
     { key: "name", label: "Name" },
@@ -209,24 +341,29 @@ function CompaniesPageInner() {
     },
   ];
 
+  const controlClass =
+    "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-[var(--accent)] focus:bg-white";
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-xl bg-[var(--bg)] p-3 ring-1 ring-[var(--border)] md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end">
+    <div className="space-y-6">
+      
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
           <div className="min-w-[260px]">
-            <div className="mb-1 text-xs font-medium text-slate-600">Search</div>
+            <div className="mb-1 text-[13px] font-medium text-slate-600">Search</div>
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search companies…"
+              className={controlClass}
             />
           </div>
 
           <div className="min-w-[200px]">
-            <div className="mb-1 text-xs font-medium text-slate-600">Category</div>
+            <div className="mb-1 text-[13px] font-medium text-slate-600">Category</div>
             <Select
               value={categoryIdParam}
               onChange={(e) => setParam("category_id", e.target.value)}
+              className={controlClass}
             >
               <option value="">All</option>
               {getOptions("company_category").map((opt) => (
@@ -238,10 +375,11 @@ function CompaniesPageInner() {
           </div>
 
           <div className="min-w-[200px]">
-            <div className="mb-1 text-xs font-medium text-slate-600">Location</div>
+            <div className="mb-1 text-[13px] font-medium text-slate-600">Location</div>
             <Select
               value={locationAreaIdParam}
               onChange={(e) => setParam("location_area_id", e.target.value)}
+              className={controlClass}
             >
               <option value="">All</option>
               {getOptions("location").map((opt) => (
@@ -253,10 +391,11 @@ function CompaniesPageInner() {
           </div>
 
           <div className="min-w-[180px]">
-            <div className="mb-1 text-xs font-medium text-slate-600">Status</div>
+            <div className="mb-1 text-[13px] font-medium text-slate-600">Status</div>
             <Select
               value={companyStatusParam}
               onChange={(e) => setParam("company_status", e.target.value)}
+              className={controlClass}
             >
               <option value="">All</option>
               <option value="PAID">PAID</option>
@@ -265,10 +404,11 @@ function CompaniesPageInner() {
           </div>
 
           <div className="min-w-[180px]">
-            <div className="mb-1 text-xs font-medium text-slate-600">Verified</div>
+            <div className="mb-1 text-[13px] font-medium text-slate-600">Verified</div>
             <Select
               value={verificationStatusParam}
               onChange={(e) => setParam("verification_status", e.target.value)}
+              className={controlClass}
             >
               <option value="">All</option>
               <option value="true">Verified</option>
@@ -280,66 +420,198 @@ function CompaniesPageInner() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              setQuery("");
-              clearFilters();
-            }}
+            onClick={() => setShowAdvanced((v) => !v)}
           >
-            Clear
+            {showAdvanced ? "Less filters" : "More filters"}
           </Button>
         </div>
 
-        <div className="flex items-center justify-between gap-2 md:justify-end">
-          <div className="text-xs text-slate-500">{loading ? "Loading…" : null}</div>
+        {showAdvanced ? (
+          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+            <div className="min-w-[240px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Email</div>
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email contains…"
+                className={controlClass}
+              />
+            </div>
+
+            <div className="min-w-[220px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Contact number</div>
+              <Input
+                value={contactNumber}
+                onChange={(e) => setContactNumber(e.target.value)}
+                placeholder="number contains…"
+                className={controlClass}
+              />
+            </div>
+
+            <div className="min-w-[260px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Created by</div>
+              <Input
+                value={createdBy}
+                onChange={(e) => setCreatedBy(e.target.value)}
+                placeholder="user UUID"
+                className={controlClass}
+              />
+            </div>
+
+            <div className="min-w-[170px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Created from</div>
+              <Input
+                type="date"
+                value={createdFromParam}
+                onChange={(e) => setParam("created_from", e.target.value)}
+                className={controlClass}
+              />
+            </div>
+
+            <div className="min-w-[170px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Created to</div>
+              <Input
+                type="date"
+                value={createdToParam}
+                onChange={(e) => setParam("created_to", e.target.value)}
+                className={controlClass}
+              />
+            </div>
+
+            <div className="min-w-[160px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Active</div>
+              <Select
+                value={isActiveParam}
+                onChange={(e) => setParam("is_active", e.target.value)}
+                className={controlClass}
+              >
+                <option value="">All</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </Select>
+            </div>
+
+            <div className="min-w-[200px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Sort by</div>
+              <Select
+                value={sortByParam}
+                onChange={(e) => setParam("sort_by", e.target.value)}
+                className={controlClass}
+              >
+                <option value="">created_at</option>
+                <option value="updated_at">updated_at</option>
+                <option value="name">name</option>
+                <option value="company_status">company_status</option>
+                <option value="verification_status">verification_status</option>
+              </Select>
+            </div>
+
+            <div className="min-w-[140px]">
+              <div className="mb-1 text-[13px] font-medium text-slate-600">Order</div>
+              <Select
+                value={orderParam}
+                onChange={(e) => setParam("order", e.target.value)}
+                className={controlClass}
+              >
+                <option value="">desc</option>
+                <option value="asc">asc</option>
+                <option value="desc">desc</option>
+              </Select>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                setEmail("");
+                setContactNumber("");
+                setCreatedBy("");
+                clearFilters();
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                setEmail("");
+                setContactNumber("");
+                setCreatedBy("");
+                clearFilters();
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-3 md:justify-end">
+          <div className="text-[13px] text-slate-500">{loading ? "Loading…" : null}</div>
           <Link href="/companies/new">
             <Button size="sm">Add company</Button>
           </Link>
         </div>
+      
+
+      
+        <PaginatedTable
+          columns={columns}
+          rows={rows}
+          page={page}
+          limit={PAGE_SIZE}
+          total={total}
+          onPageChange={(nextPage) => {
+            const params = new URLSearchParams(searchParamsString);
+            params.set("page", String(nextPage));
+            const qs = params.toString();
+            if (qs === searchParamsString) return;
+            router.replace(qs ? `${pathname}?${qs}` : pathname);
+          }}
+          renderActions={(row) => (
+            <div className="flex items-center justify-end gap-2">
+              <ShareCompanyMenu
+                company={row}
+                onCopied={() =>
+                  pushToast({
+                    title: "Copied",
+                    description: "Company details copied to clipboard",
+                  })
+                }
+              />
+              <Link
+                href={`/jobs?company_id=${encodeURIComponent(
+                  row && row.id != null ? String(row.id) : ""
+                )}`}
+                className="text-[13px] text-[var(--muted-text)] hover:underline"
+              >
+                Jobs
+              </Link>
+              <Link
+                href={`/companies/${row.id}`}
+                className="text-[13px] text-[var(--accent)] hover:underline"
+              >
+                View / Edit
+              </Link>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => handleDeleteCompany(row)}
+              >
+                Delete
+              </Button>
+            </div>
+          )}
+        />
       </div>
-      <PaginatedTable
-        columns={columns}
-        rows={rows}
-        page={page}
-        limit={PAGE_SIZE}
-        total={total}
-        onPageChange={(nextPage) => {
-          const params = new URLSearchParams(searchParams.toString());
-          params.set("page", String(nextPage));
-          const qs = params.toString();
-          router.replace(qs ? `${pathname}?${qs}` : pathname);
-        }}
-        renderActions={(row) => (
-          <div className="flex items-center justify-end gap-2">
-            <ShareCompanyMenu company={row} onCopied={() => pushToast({
-              title: "Copied",
-              description: "Company details copied to clipboard",
-            })} />
-            <Link
-              href={`/jobs?company_id=${encodeURIComponent(
-                row && row.id != null ? String(row.id) : ""
-              )}`}
-              className="text-xs text-slate-600 hover:underline"
-            >
-              Jobs
-            </Link>
-            <Link
-              href={`/companies/${row.id}`}
-              className="text-xs text-[var(--accent)] hover:underline"
-            >
-              View / Edit
-            </Link>
-            <Button
-              type="button"
-              variant="danger"
-              size="sm"
-              onClick={() => handleDeleteCompany(row)}
-            >
-              Delete
-            </Button>
-          </div>
-        )}
-      />
-    </div>
   );
 }
 

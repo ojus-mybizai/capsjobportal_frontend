@@ -1,26 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useUIStore } from "@/stores/ui";
 import JobForm from "@/components/forms/JobForm";
-import PageHeader from "@/components/ui/PageHeader";
-import Tabs from "@/components/ui/Tabs";
 import Modal from "@/components/ui/Modal";
+import DetailShell from "@/components/ui/DetailShell";
 import {
   getJob,
   updateJob,
   updateJobStatus,
   uploadJobAttachment,
 } from "@/services/jobs";
-import { getCandidate } from "@/services/candidates";
 import { listPlacementIncomes } from "@/services/placementIncomes";
 import Button from "@/components/ui/Button";
 import StatusPill from "@/components/ui/StatusPill";
 import Select from "@/components/ui/Select";
+import { getCandidateLabel } from "@/utils/entityLabels";
 
 export default function JobDetailPage() {
+  const apiBaseRaw = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const apiBase = apiBaseRaw.replace(/\/$/, "");
+  let apiOrigin = apiBase;
+  try {
+    apiOrigin = new URL(apiBase).origin;
+  } catch {
+    apiOrigin = apiBase;
+  }
+
   const params = useParams();
   const id = params?.id;
   const router = useRouter();
@@ -60,6 +69,8 @@ export default function JobDetailPage() {
       setLoading(true);
       try {
         const data = await getJob(id);
+        console.log(data)
+        console.log("job")
         if (!active) return;
         setJob(data);
         setStatusValue(data.status || "OPEN");
@@ -81,6 +92,8 @@ export default function JobDetailPage() {
   }, [id, pushToast]);
 
   useEffect(() => {
+    if (tab !== "hiring" && tab !== "payments") return;
+
     if (!job || !Array.isArray(job.joined_candidates) || job.joined_candidates.length === 0) {
       return;
     }
@@ -101,17 +114,11 @@ export default function JobDetailPage() {
         const missing = ids.filter((id) => !candidateMapRef.current[id]);
         if (missing.length === 0) return;
 
+        const labels = await Promise.all(missing.map((cid) => getCandidateLabel(cid)));
         const updates = {};
-        await Promise.all(
-          missing.map(async (id) => {
-            try {
-              const c = await getCandidate(id);
-              updates[id] = c?.full_name || c?.name || c?.candidate_name || `Candidate #${id}`;
-            } catch {
-              updates[id] = `Candidate #${id}`;
-            }
-          })
-        );
+        missing.forEach((cid, idx) => {
+          updates[cid] = labels[idx] || `Candidate #${cid}`;
+        });
 
         if (!active) return;
         setCandidateMap((prev) => ({ ...prev, ...updates }));
@@ -133,9 +140,10 @@ export default function JobDetailPage() {
     return () => {
       active = false;
     };
-  }, [job, pushToast]);
+  }, [job, tab, pushToast]);
 
   useEffect(() => {
+    if (tab !== "payments") return;
     if (!id) return;
     if (!job) return;
 
@@ -275,7 +283,7 @@ export default function JobDetailPage() {
     return () => {
       active = false;
     };
-  }, [id, job, pushToast]);
+  }, [id, job, tab, pushToast]);
 
   function formatCurrency(value) {
     const amount = typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -290,13 +298,75 @@ export default function JobDetailPage() {
     }
   }
 
+  function toAssetUrl(url) {
+    if (!url || typeof url !== "string") return "";
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (!apiOrigin) return trimmed;
+    return `${apiOrigin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+  }
+
+  function formatDate(value) {
+    if (!value) return "-";
+    const d = dayjs(value);
+    return d.isValid() ? d.format("YYYY-MM-DD") : String(value);
+  }
+
+  function formatRange(min, max) {
+    if (min != null && max != null) return `${min} - ${max}`;
+    if (min != null) return `${min}`;
+    if (max != null) return `${max}`;
+    return "-";
+  }
+
+  function formatList(arr) {
+    return Array.isArray(arr) && arr.length
+      ? arr.map((item, i) => (
+          <span
+            key={`${item}-${i}`}
+            className="inline-flex items-center rounded-full bg-[var(--bg-muted)] px-2 py-[2px] text-[11px] font-medium text-slate-700"
+          >
+            {item}
+          </span>
+        ))
+      : "-";
+  }
+
+  const displaySkills = useMemo(() => {
+    if (Array.isArray(job?.skill_names)) return job.skill_names;
+    if (Array.isArray(job?.skills)) return job.skills;
+    return [];
+  }, [job?.skill_names, job?.skills]);
+
+  const displayEducation = useMemo(() => {
+    if (Array.isArray(job?.education_names)) return job.education_names;
+    if (Array.isArray(job?.education)) return job.education;
+    return [];
+  }, [job?.education_names, job?.education]);
+
+  const displayDegree = useMemo(() => {
+    if (Array.isArray(job?.degree_names)) return job.degree_names;
+    if (Array.isArray(job?.degree)) return job.degree;
+    return [];
+  }, [job?.degree_names, job?.degree]);
+
+  const displayJobCategories = useMemo(() => {
+    if (Array.isArray(job?.job_category_names)) return job.job_category_names;
+    if (Array.isArray(job?.job_categories)) return job.job_categories;
+    return [];
+  }, [job?.job_category_names, job?.job_categories]);
+
   const infoInitialValues = job
     ? {
         title: job.title || "",
         company_id: job.company_id ? String(job.company_id) : "",
         experience_level: job.experience_level || "",
-        employment_type: job.employment_type || "",
+        job_type: job.job_type || job.employment_type || "",
+        status: job.status || "OPEN",
+        gender: job.gender || "",
         location_area_id: job.location_area_id || "",
+        job_categories: Array.isArray(job.job_categories) ? job.job_categories : [],
+        contact_person: job.contact_person || "",
         num_vacancies:
           job.num_vacancies != null ? String(job.num_vacancies) : "",
         salary_min: job.salary_min != null ? String(job.salary_min) : "",
@@ -305,6 +375,7 @@ export default function JobDetailPage() {
         responsibilities: job.responsibilities || "",
         skills: Array.isArray(job.skills) ? job.skills : [],
         education: Array.isArray(job.education) ? job.education : [],
+        degree: Array.isArray(job.degree) ? job.degree : [],
       }
     : null;
 
@@ -317,20 +388,15 @@ export default function JobDetailPage() {
       const salaryMin = values.salary_min ? Number(values.salary_min) : undefined;
       const salaryMax = values.salary_max ? Number(values.salary_max) : undefined;
 
-      const skillsArray = Array.isArray(values.skills)
-        ? values.skills.filter((item) => !!item && String(item).trim())
-        : [];
-
-      const educationArray = Array.isArray(values.education)
-        ? values.education.filter((item) => !!item && String(item).trim())
-        : [];
-
       const payload = {
         title: values.title,
         company_id: values.company_id,
         experience_level: values.experience_level || undefined,
-        employment_type: values.employment_type || undefined,
+        job_type: values.job_type || undefined,
+        status: values.status || undefined,
+        gender: values.gender || undefined,
         location_area_id: values.location_area_id || undefined,
+        contact_person: values.contact_person || undefined,
         num_vacancies:
           Number.isFinite(numVacancies) && numVacancies > 0
             ? numVacancies
@@ -341,9 +407,21 @@ export default function JobDetailPage() {
           Number.isFinite(salaryMax) && salaryMax >= 0 ? salaryMax : undefined,
         description: values.description || undefined,
         responsibilities: values.responsibilities || undefined,
-        skills: skillsArray.length > 0 ? skillsArray : undefined,
-        education: educationArray.length > 0 ? educationArray : undefined,
+        job_categories: Array.isArray(values.job_categories)
+          ? values.job_categories.filter((item) => !!item && String(item).trim())
+          : [],
+        skills: Array.isArray(values.skills)
+          ? values.skills.filter((item) => !!item && String(item).trim())
+          : [],
+        education: Array.isArray(values.education)
+          ? values.education.filter((item) => !!item && String(item).trim())
+          : [],
+        degree: Array.isArray(values.degree)
+          ? values.degree.filter((item) => !!item && String(item).trim())
+          : [],
+        is_active: job?.is_active !== false,
       };
+      console.log(payload)
 
       const updated = await updateJob(id, payload);
       setJob(updated);
@@ -476,14 +554,43 @@ export default function JobDetailPage() {
   }
 
   if (loading) {
-    return <p className="text-xs text-slate-500">Loading job...</p>;
+    return (
+      <DetailShell
+        title="Job"
+        subtitle="Job record"
+        loading
+        loadingTitle="Loading job..."
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "attachments", label: "Attachments" },
+          { value: "hiring", label: "Hiring" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
+      />
+    );
   }
 
   if (!job) {
     return (
-      <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--danger)]">
-        Job not found.
-      </div>
+      <DetailShell
+        title="Job"
+        subtitle="Job record"
+        notFound
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "attachments", label: "Attachments" },
+          { value: "hiring", label: "Hiring" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
+      />
     );
   }
 
@@ -493,8 +600,8 @@ export default function JobDetailPage() {
     : [];
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <PageHeader
+    <>
+      <DetailShell
         title={job.title || "Job"}
         subtitle={
           job.company_name
@@ -504,6 +611,16 @@ export default function JobDetailPage() {
             : "Job record"
         }
         statusSlot={job.status ? <StatusPill status={job.status} /> : null}
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "attachments", label: "Attachments" },
+          { value: "hiring", label: "Hiring" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
         actions={
           <>
             <Button type="button" variant="outline" onClick={() => setTab("edit")}>
@@ -512,65 +629,123 @@ export default function JobDetailPage() {
             <Button type="button" onClick={openStatusModal}>
               Change status
             </Button>
-            <Button variant="ghost" onClick={() => router.back()}>
-              Back
-            </Button>
+            {job.company_id ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push(`/companies/${job.company_id}`)}
+              >
+                View company
+              </Button>
+            ) : null}
           </>
         }
-      />
-
-      <Tabs
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: "overview", label: "Overview" },
-          { value: "edit", label: "Edit" },
-          { value: "attachments", label: "Attachments" },
-          { value: "hiring", label: "Hiring" },
-          { value: "payments", label: "Payments" },
-        ]}
-      />
+      >
 
       {tab === "overview" ? (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Vacancies</div>
-              <div className="mt-1 text-lg font-bold text-slate-900">
-                {job.num_vacancies != null ? job.num_vacancies : job.vacancies != null ? job.vacancies : "-"}
+        <div className="space-y-3">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+                <div className="text-[10px] text-slate-500">Vacancies</div>
+                <div className="text-lg font-bold text-slate-900">
+                  {job.num_vacancies != null ? job.num_vacancies : job.vacancies != null ? job.vacancies : "-"}
+                </div>
+              </div>
+              <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+                <div className="text-[10px] text-slate-500">Salary</div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {formatRange(job.salary_min, job.salary_max)}
+                </div>
+              </div>
+              <div className="space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+                <div className="text-[10px] text-slate-500">Location</div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {job.location_area_name || job.location || job.location_area_id || "-"}
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Location</div>
-              <div className="mt-1 text-sm font-medium text-slate-900">
-                {job.location_area_name || job.location || job.location_area_id || "-"}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Salary</div>
-              <div className="mt-1 text-sm font-medium text-slate-900">
-                {typeof job.salary_min === "number" && typeof job.salary_max === "number"
-                  ? `${job.salary_min} - ${job.salary_max}`
-                  : typeof job.salary_min === "number"
-                  ? String(job.salary_min)
-                  : typeof job.salary_max === "number"
-                  ? String(job.salary_max)
-                  : "-"}
-              </div>
-            </div>
-          </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Description</div>
-              <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
-                {job.description || "-"}
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Job type</div>
+                <div className="mt-1 text-sm text-slate-900">{job.job_type || job.employment_type || "-"}</div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Experience level</div>
+                <div className="mt-1 text-sm text-slate-900">{job.experience_level || "-"}</div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Gender preference</div>
+                <div className="mt-1 text-sm text-slate-900">{job.gender || "-"}</div>
               </div>
             </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Responsibilities</div>
-              <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
-                {job.responsibilities || "-"}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Created</div>
+                <div className="mt-1 text-sm text-slate-900">{formatDate(job.created_at || job.createdAt)}</div>
+              </div>
+              <div className="sm:col-span-2">
+                <div className="text-xs font-semibold text-slate-600">Degree</div>
+                <div className="mt-1 flex flex-wrap gap-1">{formatList(displayDegree)}</div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Description</div>
+                <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                  {job.description || "-"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Responsibilities</div>
+                <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                  {job.responsibilities || "-"}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-600">Skills</div>
+                <div className="flex flex-wrap gap-1">{formatList(displaySkills)}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-600">Education</div>
+                <div className="flex flex-wrap gap-1">{formatList(displayEducation)}</div>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-600">Job categories</div>
+                <div className="flex flex-wrap gap-1">{formatList(displayJobCategories)}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-600">Attachments</div>
+                <div className="flex flex-wrap gap-2">
+                  {attachments.length > 0 ? (
+                    attachments.map((file, idx) => {
+                      const url = toAssetUrl(file?.file_url || file?.url || file);
+                      const label = file?.file_name || file?.name || `Attachment ${idx + 1}`;
+                      return (
+                        <a
+                          key={`${label}-${idx}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-1 text-[11px] font-medium text-[var(--text)] hover:border-[var(--accent)]"
+                        >
+                          <span className="text-[12px]">📎</span>
+                          <span>{label}</span>
+                        </a>
+                      );
+                    })
+                  ) : (
+                    <span className="text-sm text-slate-500">-</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -578,26 +753,24 @@ export default function JobDetailPage() {
       ) : null}
 
       {tab === "payments" ? (
-        <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
+        <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-xs">
           <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-semibold text-[var(--text)]">
-              Placement income summary
-            </h2>
+            <h2 className="text-[12px] font-semibold text-[var(--text)]">Placement income</h2>
             {loadingPlacementIncome && (
               <span className="text-[10px] text-slate-500">Loading placement income...</span>
             )}
           </div>
 
           {placementIncomeRows.length === 0 && !loadingPlacementIncome ? (
-            <div className="mt-2 rounded border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-2 text-[11px] text-slate-700">
+            <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-[11px] text-slate-700">
               No placement income found for joined candidates.
             </div>
           ) : null}
 
           {placementIncomeRows.length > 0 ? (
             <>
-              <div className="mt-1 grid gap-3 md:grid-cols-3">
-                <div className="rounded border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
                   <div className="text-[10px] font-semibold text-slate-600">Total receivable</div>
                   <div className="mt-1 text-sm font-semibold text-slate-900">
                     {formatCurrency(
@@ -608,7 +781,7 @@ export default function JobDetailPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+                <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
                   <div className="text-[10px] font-semibold text-slate-600">Total received</div>
                   <div className="mt-1 text-sm font-semibold text-emerald-700">
                     {formatCurrency(
@@ -619,7 +792,7 @@ export default function JobDetailPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
+                <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2">
                   <div className="text-[10px] font-semibold text-slate-600">Balance</div>
                   <div className="mt-1 text-sm font-semibold text-amber-700">
                     {formatCurrency(
@@ -632,7 +805,17 @@ export default function JobDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-3 space-y-1 text-[11px]">
+              <div className="mt-3 space-y-2 text-[11px]">
+                <div className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-[10px] font-semibold text-slate-600">
+                  <div className="min-w-[180px]">Candidate</div>
+                  <div className="flex flex-1 justify-end gap-4">
+                    <span className="w-24 text-right">Receivable</span>
+                    <span className="w-24 text-right">Received</span>
+                    <span className="w-24 text-right">Balance</span>
+                    <span className="w-20 text-right">Due</span>
+                  </div>
+                </div>
+
                 {placementIncomeRows.map((row) => {
                   const candidateId = row?.candidate_id ? String(row.candidate_id) : "";
                   const candidateLabel =
@@ -651,40 +834,42 @@ export default function JobDetailPage() {
 
                   return (
                     <div
-                      key={candidateId}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-2"
+                      key={candidateId || Math.random()}
+                      className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
                     >
-                      <div className="min-w-[180px] font-medium text-slate-800">
-                        {candidateLabel}
-                        {row?.count ? (
-                          <span className="ml-2 text-[10px] font-normal text-slate-500">
-                            ({row.count})
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-700">
-                        <span>
-                          <span className="font-medium">Receivable:</span>{" "}
-                          {formatCurrency(row.total_receivable)}
+                      <div className="flex min-w-[200px] flex-col">
+                        <span className="font-semibold text-slate-800">
+                          {candidateId ? (
+                            <Link
+                              href={`/candidates/${candidateId}`}
+                              className="text-[var(--accent)] hover:underline"
+                            >
+                              {candidateLabel}
+                            </Link>
+                          ) : (
+                            candidateLabel
+                          )}
                         </span>
-                        <span>
-                          <span className="font-medium">Received:</span>{" "}
+                        {row?.count ? (
+                          <span className="text-[10px] text-slate-500">Payments: {row.count}</span>
+                        ) : null}
+                        <Link
+                          href={paymentsHref}
+                          className="text-[10px] font-semibold text-[var(--accent)] hover:underline"
+                        >
+                          View in ledger
+                        </Link>
+                      </div>
+                      <div className="flex flex-1 justify-end gap-4 text-[11px] text-slate-800">
+                        <span className="w-24 text-right">{formatCurrency(row.total_receivable)}</span>
+                        <span className="w-24 text-right text-emerald-700">
                           {formatCurrency(row.total_received)}
                         </span>
-                        <span>
-                          <span className="font-medium">Balance:</span>{" "}
+                        <span className="w-24 text-right text-amber-700">
                           {formatCurrency(row.balance)}
                         </span>
-                        <span>
-                          <span className="font-medium">Due:</span> {dueText}
-                        </span>
+                        <span className="w-20 text-right text-slate-600">{dueText}</span>
                       </div>
-                      <Link
-                        href={paymentsHref}
-                        className="text-[10px] font-semibold text-[var(--accent)] hover:underline"
-                      >
-                        View in ledger
-                      </Link>
                     </div>
                   );
                 })}
@@ -724,7 +909,7 @@ export default function JobDetailPage() {
           </form>
 
           {attachments.length > 0 && (
-            <div className="mt-3 space-y-1 text-[11px] text-slate-700">
+            <div className="mt-3 space-y-2 text-[11px] text-slate-700">
               {attachments.map((file, index) => {
                 const label =
                   file?.file_name ||
@@ -733,13 +918,24 @@ export default function JobDetailPage() {
                   file?.url ||
                   (file?.id ? `#${file.id}` : `Attachment ${index + 1}`);
                 const key = file?.id != null ? String(file.id) : `${label}-${index}`;
+                const href = file?.url ? toAssetUrl(file.url) : "";
 
                 return (
                   <div
                     key={key}
-                    className="flex items-center justify-between rounded border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1"
+                    className="flex items-center justify-between rounded border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-2"
                   >
-                    <span className="break-all">{label}</span>
+                    <span className="break-all font-medium text-slate-800">{label}</span>
+                    {href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] font-semibold text-[var(--accent)] hover:underline"
+                      >
+                        Open
+                      </a>
+                    ) : null}
                   </div>
                 );
               })}
@@ -749,25 +945,30 @@ export default function JobDetailPage() {
       ) : null}
 
       {tab === "hiring" ? (
-        <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
+        <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-xs">
           <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-semibold text-[var(--text)]">
-              Hiring summary
-            </h2>
+            <h2 className="text-[12px] font-semibold text-[var(--text)]">Hiring summary</h2>
             {loadingCandidates && (
-              <span className="text-[10px] text-slate-500">
-                Loading joined candidates...
-              </span>
+              <span className="text-[10px] text-slate-500">Loading joined candidates...</span>
             )}
           </div>
 
-          <div className="mt-1 text-[11px] text-slate-700">
-            <span className="font-medium">Joined candidates:</span>{" "}
-            <span>{joinedCandidates.length}</span>
+          <div className="flex items-center gap-2 text-[11px] text-slate-700">
+            <span className="font-medium">Joined candidates:</span>
+            <span className="rounded-full bg-[var(--bg-muted)] px-2 py-[2px] text-[11px] font-semibold text-slate-800">
+              {joinedCandidates.length}
+            </span>
           </div>
 
           {joinedCandidates.length > 0 && (
-            <div className="mt-2 space-y-1 text-[11px]">
+            <div className="mt-2 space-y-2 text-[11px]">
+              <div className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-[10px] font-semibold text-slate-600">
+                <div className="min-w-[200px]">Candidate</div>
+                <div className="flex flex-1 justify-end gap-4">
+                  <span className="w-28 text-right">DOJ</span>
+                  <span className="w-28 text-right">Salary</span>
+                </div>
+              </div>
               {joinedCandidates.map((item) => {
                 const idKey =
                   item && item.candidate_id != null ? String(item.candidate_id) : null;
@@ -781,28 +982,31 @@ export default function JobDetailPage() {
                     ? `Candidate #${item.candidate_id}`
                     : `#${item.id}`);
 
-                const dojText = item.doj ? dayjs(item.doj).format("YYYY-MM-DD") : null;
+                const dojText = item.doj ? dayjs(item.doj).format("YYYY-MM-DD") : "-";
 
                 const salaryText =
-                  typeof item.salary === "number" ? item.salary : item.salary || null;
+                  typeof item.salary === "number" ? item.salary : item.salary || "-";
 
                 return (
                   <div
                     key={item.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1"
+                    className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
                   >
-                    <div className="font-medium text-slate-800">{candidateLabel}</div>
-                    <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-600">
-                      {dojText && (
-                        <span>
-                          <span className="font-medium">DOJ:</span> {dojText}
-                        </span>
+                    <div className="min-w-[200px] font-semibold text-slate-800">
+                      {idKey ? (
+                        <Link
+                          href={`/candidates/${idKey}`}
+                          className="text-[var(--accent)] hover:underline"
+                        >
+                          {candidateLabel}
+                        </Link>
+                      ) : (
+                        candidateLabel
                       )}
-                      {salaryText && (
-                        <span>
-                          <span className="font-medium">Salary:</span> {salaryText}
-                        </span>
-                      )}
+                    </div>
+                    <div className="flex flex-1 justify-end gap-4 text-[11px] text-slate-700">
+                      <span className="w-28 text-right">{dojText}</span>
+                      <span className="w-28 text-right">{salaryText}</span>
                     </div>
                   </div>
                 );
@@ -811,6 +1015,8 @@ export default function JobDetailPage() {
           )}
         </div>
       ) : null}
+
+      </DetailShell>
 
       <Modal
         open={statusModalOpen}
@@ -855,6 +1061,6 @@ export default function JobDetailPage() {
           </div>
         </div>
       </Modal>
-    </div>
+    </>
   );
 }

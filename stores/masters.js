@@ -6,6 +6,11 @@ import { createMaster, listMaster } from "../services/masters";
 const MASTER_KEYS = [
   "company_category",
   "location",
+  "job_category",
+  "experience_level",
+  "skill",
+  "education",
+  "degree",
 ];
 
 export const useMastersStore = create((set, get) => ({

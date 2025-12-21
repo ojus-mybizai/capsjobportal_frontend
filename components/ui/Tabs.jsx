@@ -2,45 +2,24 @@
 
 import clsx from "clsx";
 
-export default function Tabs({
-  items,
-  value,
-  onChange,
-  className,
-  tabClassName,
-  ...props
-}) {
-  const safeItems = Array.isArray(items) ? items : [];
-
+export default function Tabs({ items = [], value, onChange }) {
   return (
-    <div
-      className={clsx(
-        "flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1",
-        className
-      )}
-      role="tablist"
-      {...props}
-    >
-      {safeItems.map((item) => {
-        const key = String(item.value);
-        const selected = String(value) === key;
-
+    <div className="flex flex-wrap gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-1">
+      {items.map((item) => {
+        const active = item.value === value;
         return (
           <button
-            key={key}
+            key={item.value}
             type="button"
-            role="tab"
-            aria-selected={selected}
             onClick={() => onChange && onChange(item.value)}
             className={clsx(
-              "rounded-md px-3 py-2 text-sm font-semibold transition-colors",
-              selected
-                ? "bg-[var(--accent)] text-white"
-                : "text-slate-700 hover:bg-slate-100",
-              tabClassName
+              "rounded-md px-3 py-1.5 text-sm font-medium transition",
+              active
+                ? "bg-[var(--accent)] text-white shadow-sm"
+                : "text-slate-600 hover:bg-white hover:text-slate-900"
             )}
           >
-            {item.label}
+            {item.label || item.value}
           </button>
         );
       })}

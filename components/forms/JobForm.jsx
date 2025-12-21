@@ -17,13 +17,22 @@ const schema = z.object({
   num_vacancies: z.string().optional(),
   salary_min: z.string().optional(),
   salary_max: z.string().optional(),
-  experience_level: z.string().optional(),
-  employment_type: z.string().optional(),
+  experience_level: z
+    .enum(["FRESHER", "0_1_YEARS", "1_3_YEARS", "3_5_YEARS", "5_PLUS_YEARS"])
+    .optional(),
+  experience: z.string().optional(),
+  qualification: z.string().optional(),
+  job_categories: z.array(z.string().min(1)).optional(),
+  job_type: z.enum(["FULL_TIME", "PART_TIME", "INTERNSHIP"]).optional(),
+  status: z.enum(["OPEN", "FULFILLED", "DROPPED"]).optional(),
+  gender: z.enum(["MALE", "FEMALE", "OTHER", "BOTH"]).optional(),
   skills: z.array(z.string().min(1)).optional(),
   education: z.array(z.string().min(1)).optional(),
+  degree: z.array(z.string().min(1)).optional(),
   location_area_id: z.string().optional(),
   description: z.string().optional(),
   responsibilities: z.string().optional(),
+  contact_person: z.string().optional(),
 });
 
 export default function JobForm({
@@ -49,21 +58,38 @@ export default function JobForm({
   const getOptions = useMastersStore((state) => state.getOptions);
 
   const [locationOptions, setLocationOptions] = useState([]);
+  const [skillOptions, setSkillOptions] = useState([]);
+  const [educationOptions, setEducationOptions] = useState([]);
+  const [degreeOptions, setDegreeOptions] = useState([]);
+  const [jobCategoryOptions, setJobCategoryOptions] = useState([]);
   const [skillInput, setSkillInput] = useState("");
   const [educationInput, setEducationInput] = useState("");
+  const [degreeInput, setDegreeInput] = useState("");
+  const [jobCategoryInput, setJobCategoryInput] = useState("");
 
   const skills = watch("skills") || [];
   const education = watch("education") || [];
+  const degree = watch("degree") || [];
+  const jobCategories = watch("job_categories") || [];
 
   useEffect(() => {
+    register("job_categories");
     let active = true;
 
     async function loadData() {
       try {
         await loadMaster("location");
         if (!active) return;
-
         setLocationOptions(getOptions("location"));
+        await loadMaster("skill");
+        await loadMaster("education");
+        await loadMaster("degree");
+        await loadMaster("job_category");
+        if (!active) return;
+        setSkillOptions(getOptions("skill"));
+        setEducationOptions(getOptions("education"));
+        setDegreeOptions(getOptions("degree"));
+        setJobCategoryOptions(getOptions("job_category"));
       } catch {
         // keep form usable even if masters fail
       }
@@ -108,10 +134,52 @@ export default function JobForm({
     setEducationInput("");
   }
 
+  function addDegreeFromInput() {
+    const value = degreeInput.trim();
+    if (!value) return;
+    const current = Array.isArray(degree) ? degree : [];
+    if (current.includes(value)) {
+      setDegreeInput("");
+      return;
+    }
+    setValue("degree", [...current, value], { shouldValidate: true });
+    setDegreeInput("");
+  }
+
   function removeEducation(index) {
     const current = Array.isArray(education) ? education : [];
     setValue(
       "education",
+      current.filter((_, i) => i !== index),
+      { shouldValidate: true }
+    );
+  }
+
+  function removeDegree(index) {
+    const current = Array.isArray(degree) ? degree : [];
+    setValue(
+      "degree",
+      current.filter((_, i) => i !== index),
+      { shouldValidate: true }
+    );
+  }
+
+  function addJobCategoryFromInput() {
+    const value = jobCategoryInput.trim();
+    if (!value) return;
+    const current = Array.isArray(jobCategories) ? jobCategories : [];
+    if (current.includes(value)) {
+      setJobCategoryInput("");
+      return;
+    }
+    setValue("job_categories", [...current, value], { shouldValidate: true });
+    setJobCategoryInput("");
+  }
+
+  function removeJobCategory(index) {
+    const current = Array.isArray(jobCategories) ? jobCategories : [];
+    setValue(
+      "job_categories",
       current.filter((_, i) => i !== index),
       { shouldValidate: true }
     );
@@ -185,9 +253,10 @@ export default function JobForm({
           <Select {...register("experience_level")}>
             <option value="">Select experience level</option>
             <option value="FRESHER">Fresher</option>
-            <option value="0-2 YEARS">0-2 years</option>
-            <option value="2-5 YEARS">2-5 years</option>
-            <option value="5+ YEARS">5+ years</option>
+            <option value="0_1_YEARS">0-1 years</option>
+            <option value="1_3_YEARS">1-3 years</option>
+            <option value="3_5_YEARS">3-5 years</option>
+            <option value="5_PLUS_YEARS">5+ years</option>
           </Select>
         </div>
       </div>
@@ -195,10 +264,10 @@ export default function JobForm({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-700">
-            Employment type
+            Job type
           </label>
-          <Select {...register("employment_type")}>
-            <option value="">Select employment type</option>
+          <Select {...register("job_type")}>
+            <option value="">Select job type</option>
             <option value="FULL_TIME">Full time</option>
             <option value="PART_TIME">Part time</option>
             <option value="INTERNSHIP">Internship</option>
@@ -220,20 +289,92 @@ export default function JobForm({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-700">
+            Job categories
+          </label>
+          <div className="flex gap-2">
+            <Select
+              value={jobCategoryInput}
+              onChange={(e) => setJobCategoryInput(e.target.value)}
+              className="bg-white"
+            >
+              <option value="">Select category</option>
+              {jobCategoryOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+            <Button type="button" size="sm" onClick={addJobCategoryFromInput}>
+              Add
+            </Button>
+          </div>
+          {Array.isArray(jobCategories) && jobCategories.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {jobCategories.map((item, index) => (
+                <span
+                  key={`${item}-${index}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
+                >
+                  <span>{item}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeJobCategory(index)}
+                    className="text-[10px] text-slate-500 hover:text-slate-700"
+                    aria-label="Remove job category"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {errors.job_categories && (
+            <p className="mt-1 text-xs text-[var(--danger)]">
+              {errors.job_categories.message}
+            </p>
+          )}
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Contact person
+          </label>
+          <Input placeholder="Who to contact" {...register("contact_person")} />
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Qualification
+          </label>
+          <Input placeholder="e.g. B.Tech" {...register("qualification")} />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Experience text
+          </label>
+          <Input placeholder="e.g. 5+ years" {...register("experience")} />
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
             Skills
           </label>
           <div className="flex gap-2">
-            <Input
+            <Select
               value={skillInput}
               onChange={(e) => setSkillInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addSkillFromInput();
-                }
-              }}
-              placeholder="Add a skill and press Enter"
-            />
+              className="bg-white"
+            >
+              <option value="">Select skill</option>
+              {skillOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
             <Button type="button" size="sm" onClick={addSkillFromInput}>
               Add
             </Button>
@@ -269,17 +410,18 @@ export default function JobForm({
             Education
           </label>
           <div className="flex gap-2">
-            <Input
+            <Select
               value={educationInput}
               onChange={(e) => setEducationInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addEducationFromInput();
-                }
-              }}
-              placeholder="Add an education entry and press Enter"
-            />
+              className="bg-white"
+            >
+              <option value="">Select education</option>
+              {educationOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
             <Button type="button" size="sm" onClick={addEducationFromInput}>
               Add
             </Button>
@@ -309,6 +451,80 @@ export default function JobForm({
               {errors.education.message}
             </p>
           )}
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="block text-xs font-medium text-slate-700">
+          Degree
+        </label>
+        <div className="flex gap-2">
+          <Select
+            value={degreeInput}
+            onChange={(e) => setDegreeInput(e.target.value)}
+            className="bg-white"
+          >
+            <option value="">Select degree</option>
+            {degreeOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+          <Button type="button" size="sm" onClick={addDegreeFromInput}>
+            Add
+          </Button>
+        </div>
+        {Array.isArray(degree) && degree.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {degree.map((item, index) => (
+              <span
+                key={`${item}-${index}`}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
+              >
+                <span>{item}</span>
+                <button
+                  type="button"
+                  onClick={() => removeDegree(index)}
+                  className="text-[10px] text-slate-500 hover:text-slate-700"
+                  aria-label="Remove degree entry"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {errors.degree && (
+          <p className="mt-1 text-xs text-[var(--danger)]">
+            {errors.degree.message}
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Status
+          </label>
+          <Select {...register("status")}>
+            <option value="">Select status</option>
+            <option value="OPEN">Open</option>
+            <option value="FULFILLED">Fulfilled</option>
+            <option value="DROPPED">Dropped</option>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Gender preference
+          </label>
+          <Select {...register("gender")}>
+            <option value="">Select gender</option>
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+            <option value="OTHER">Other</option>
+            <option value="BOTH">Both</option>
+          </Select>
         </div>
       </div>
 

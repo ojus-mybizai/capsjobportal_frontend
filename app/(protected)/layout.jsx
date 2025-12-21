@@ -56,13 +56,17 @@ function ProtectedLayoutInner({ children }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg-muted)]">
+    <div className="flex min-h-screen bg-slate-50 text-slate-900">
       <Sidebar />
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen flex-1 flex-col bg-slate-50">
         <Header />
-        <main className="flex-1 px-4 py-4 md:px-6 md:py-6">
-          <Breadcrumbs />
-          {children}
+        <main className="flex-1 ">
+          <div className="mx-auto flex min-h-full flex-col gap-5 border border-slate-200 bg-white p-5 shadow-lg ring-1 ring-slate-200/70">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+              <Breadcrumbs />
+            </div>
+            {children}
+          </div>
         </main>
       </div>
     </div>

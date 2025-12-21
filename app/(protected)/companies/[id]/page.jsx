@@ -3,15 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useUIStore } from "@/stores/ui";
+import { useCompaniesStore } from "@/stores/companies";
 import CompanyForm from "@/components/forms/CompanyForm";
-import PageHeader from "@/components/ui/PageHeader";
-import Tabs from "@/components/ui/Tabs";
+import DetailShell from "@/components/ui/DetailShell";
 import StatusPill from "@/components/ui/StatusPill";
 import {
   getCompany,
   updateCompany,
   uploadCompanyMedia,
-  createCompanyPayment,
 } from "@/services/companies";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -19,6 +18,16 @@ import Table from "@/components/table/Table";
 import Modal from "@/components/ui/Modal";
 
 export default function CompanyDetailPage() {
+  const apiBaseRaw = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const apiBase = apiBaseRaw.replace(/\/$/, "");
+  let apiOrigin = apiBase;
+  try {
+    apiOrigin = new URL(apiBase).origin;
+  } catch {
+    // fallback to raw
+    apiOrigin = apiBase;
+  }
+
   const params = useParams();
   const id = params?.id;
   const router = useRouter();
@@ -46,7 +55,20 @@ export default function CompanyDetailPage() {
 
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
+  const [paymentRemarks, setPaymentRemarks] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
+
+  const paymentsByCompanyId = useCompaniesStore((state) => state.paymentsByCompanyId);
+  const createPayment = useCompaniesStore((state) => state.createPayment);
+
+  function toAssetUrl(url) {
+    if (!url || typeof url !== "string") return "";
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    const path = trimmed.startsWith("/media") ? trimmed : trimmed.startsWith("media") ? `/${trimmed}` : trimmed;
+    if (!apiOrigin) return path;
+    return `${apiOrigin}${path.startsWith("/") ? "" : "/"}${path}`;
+  }
 
   useEffect(() => {
     setPageMetadata("Company details", "View and edit company");
@@ -60,6 +82,7 @@ export default function CompanyDetailPage() {
       setLoading(true);
       try {
         const data = await getCompany(id);
+        console.log(data)
         if (!active) return;
         setCompany(data);
         setVerificationStatus(data.verification_status ? "true" : "false");
@@ -81,6 +104,10 @@ export default function CompanyDetailPage() {
       active = false;
     };
   }, [id, pushToast]);
+
+  const paidForPayments = companyStatus === "PAID" || company?.company_status === "PAID";
+
+  // payments are included in getCompany; we only rely on cached store list if it exists (e.g., after a create)
   const infoInitialValues = company
     ? {
         name: company.name || "",
@@ -244,8 +271,6 @@ export default function CompanyDetailPage() {
     }
   }
 
-  const payments = Array.isArray(company?.payments) ? company.payments : [];
-
   async function handleAddPayment(event) {
     event.preventDefault();
     if (!id) return;
@@ -291,21 +316,13 @@ export default function CompanyDetailPage() {
       const payload = {
         amount: amountNumber,
         payment_date: isoDate,
+        remarks: paymentRemarks ? paymentRemarks.trim() : undefined,
       };
-      const payment = await createCompanyPayment(id, payload);
-      setCompany((prev) =>
-        prev
-          ? {
-              ...prev,
-              payments: [
-                payment,
-                ...(Array.isArray(prev.payments) ? prev.payments : []),
-              ],
-            }
-          : prev
-      );
+
+      await createPayment(id, payload);
       setPaymentAmount("");
       setPaymentDate("");
+      setPaymentRemarks("");
       pushToast({
         title: "Payment recorded",
         description: "The company payment was added successfully.",
@@ -332,14 +349,41 @@ export default function CompanyDetailPage() {
   }
 
   if (loading) {
-    return <p className="text-xs text-slate-500">Loading company...</p>;
+    return (
+      <DetailShell
+        title="Company"
+        subtitle="Company record"
+        loading
+        loadingTitle="Loading company..."
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "verification", label: "Verification" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
+      />
+    );
   }
 
   if (!company) {
     return (
-      <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--danger)]">
-        Company not found.
-      </div>
+      <DetailShell
+        title="Company"
+        subtitle="Company record"
+        notFound
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "verification", label: "Verification" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
+      />
     );
   }
 
@@ -350,12 +394,27 @@ export default function CompanyDetailPage() {
     </div>
   );
 
+  const paymentsList = Array.isArray(paymentsByCompanyId[id])
+    ? paymentsByCompanyId[id]
+    : Array.isArray(company?.payments)
+    ? company.payments
+    : [];
+
   return (
-    <div className="max-w-4xl space-y-4">
-      <PageHeader
+    <>
+      <DetailShell
         title={company.name || "Company"}
         subtitle="Company record"
         statusSlot={headerStatus}
+        tab={tab}
+        setTab={setTab}
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "edit", label: "Edit" },
+          { value: "verification", label: "Verification" },
+          { value: "payments", label: "Payments" },
+        ]}
+        onBack={() => router.back()}
         actions={
           <>
             <Button type="button" variant="outline" onClick={() => setTab("edit")}>Edit</Button>
@@ -368,66 +427,163 @@ export default function CompanyDetailPage() {
             <Button type="button" variant="outline" onClick={() => setTab("payments")}>
               Payments
             </Button>
-            <Button variant="ghost" onClick={() => router.back()}>
-              Back
-            </Button>
           </>
         }
-      />
-
-      <Tabs
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: "overview", label: "Overview" },
-          { value: "edit", label: "Edit" },
-          { value: "verification", label: "Verification" },
-          { value: "payments", label: "Payments" },
-        ]}
-      />
+      >
 
       {tab === "overview" ? (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Contact person</div>
-              <div className="mt-1 text-sm text-slate-900">{company.contact_person || "-"}</div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Company
+                </div>
+                <div className="mt-1 text-lg font-semibold text-slate-900">
+                  {company.name || "-"}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                  <StatusPill status={company.company_status || companyStatus || "FREE"} />
+                  <StatusPill status={company.verification_status ? "Verified" : "Not verified"} />
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/jobs?company_id=${id}`)}
+              >
+                View jobs
+              </Button>
             </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Contact number</div>
-              <div className="mt-1 text-sm text-slate-900">{company.contact_number || "-"}</div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Category</div>
+                <div className="mt-1 text-sm font-medium text-slate-900">
+                  {company.category_name || company.category || company.category_id || "-"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Location</div>
+                <div className="mt-1 text-sm font-medium text-slate-900">
+                  {company.location_area_name || company.location || company.location_area_id || "-"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Contact person</div>
+                <div className="mt-1 text-sm text-slate-900">{company.contact_person || "-"}</div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Contact number</div>
+                <div className="mt-1 text-sm text-slate-900">{company.contact_number || "-"}</div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Email</div>
+                <div className="mt-1 text-sm text-slate-900">{company.email || "-"}</div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-600">Links</div>
+                <div className="mt-1 space-y-1 text-sm">
+                  {company.location_link ? (
+                    <a
+                      href={String(company.location_link)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block break-all font-medium text-[var(--accent)] hover:underline"
+                    >
+                      {String(company.location_link)}
+                    </a>
+                  ) : null}
+                  {company.google_map_url ? (
+                    <a
+                      href={String(company.google_map_url)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block break-all font-medium text-[var(--accent)] hover:underline"
+                    >
+                      {String(company.google_map_url)}
+                    </a>
+                  ) : null}
+                  {!company.location_link && !company.google_map_url ? (
+                    <div className="text-sm text-slate-900">-</div>
+                  ) : null}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Email</div>
-              <div className="mt-1 text-sm text-slate-900">{company.email || "-"}</div>
+
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-slate-600">Address</div>
+              <div className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
+                {company.address || "-"}
+              </div>
             </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-600">Location</div>
-              <div className="mt-1 text-sm text-slate-900">
-                {company.location_area_name || company.location || company.location_area_id || "-"}
+
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-slate-600">Notes</div>
+              <div className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
+                {company.notes || "-"}
               </div>
             </div>
           </div>
 
-          <div className="mt-4">
-            <div className="text-xs font-semibold text-slate-600">Address</div>
-            <div className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
-              {company.address || "-"}
-            </div>
-          </div>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+            <div className="text-xs font-semibold text-slate-600">Images</div>
+            <div className="mt-3 space-y-4">
+              <div>
+                <div className="text-[11px] font-medium text-slate-600">Front image</div>
+                {company.front_image_url ? (
+                  <a
+                    href={toAssetUrl(company.front_image_url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block"
+                  >
+                    <img
+                      src={toAssetUrl(company.front_image_url)}
+                      alt="Front image"
+                      className="mt-2 w-full rounded-md border border-[var(--border)] bg-white object-contain"
+                    />
+                  </a>
+                ) : (
+                  <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-3 text-xs text-slate-600">
+                    No image
+                  </div>
+                )}
+              </div>
 
-          <div className="mt-4">
-            <div className="text-xs font-semibold text-slate-600">Notes</div>
-            <div className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
-              {company.notes || "-"}
+              <div>
+                <div className="text-[11px] font-medium text-slate-600">Visiting card</div>
+                {company.visiting_card_url ? (
+                  <a
+                    href={toAssetUrl(company.visiting_card_url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block"
+                  >
+                    <img
+                      src={toAssetUrl(company.visiting_card_url)}
+                      alt="Visiting card"
+                      className="mt-2 w-full rounded-md border border-[var(--border)] bg-white object-contain"
+                    />
+                  </a>
+                ) : (
+                  <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-3 text-xs text-slate-600">
+                    No image
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       ) : null}
 
       {tab === "edit" ? (
-        <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">
-          {/* 1️⃣ Company info */}
+        <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-[var(--text)]">Edit company</h2>
+            <span className="text-[11px] text-slate-500">Update core details</span>
+          </div>
           {infoInitialValues && (
             <div className="mt-2 max-w-3xl">
               <CompanyForm
@@ -441,11 +597,14 @@ export default function CompanyDetailPage() {
       ) : null}
 
       {tab === "verification" ? (
-        <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
+        <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-xs">
           {/* 2️⃣ Verification */}
-          <h2 className="text-xs font-semibold text-[var(--text)]">Verification</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-[var(--text)]">Verification</h2>
+            <span classename="text-[11px] text-slate-500">Upload documents</span>
+          </div>
 
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <label className="block text-[11px] font-medium text-slate-700">
                 Visiting card
@@ -460,6 +619,20 @@ export default function CompanyDetailPage() {
                 }
                 className="block w-full text-[11px] text-slate-600 file:mr-2 file:rounded-md file:border file:border-[var(--border)] file:bg-[var(--bg)] file:px-2 file:py-1 file:text-[11px] file:font-medium file:text-slate-700 hover:file:bg-slate-50"
               />
+              {company.visiting_card_url ? (
+                <a
+                  href={toAssetUrl(company.visiting_card_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                >
+                  <img
+                    src={toAssetUrl(company.visiting_card_url)}
+                    alt="Visiting card"
+                    className="mt-2 w-full rounded-md border border-[var(--border)] bg-white object-contain"
+                  />
+                </a>
+              ) : null}
             </div>
             <div className="space-y-1">
               <label className="block text-[11px] font-medium text-slate-700">
@@ -475,6 +648,20 @@ export default function CompanyDetailPage() {
                 }
                 className="block w-full text-[11px] text-slate-600 file:mr-2 file:rounded-md file:border file:border-[var(--border)] file:bg-[var(--bg)] file:px-2 file:py-1 file:text-[11px] file:font-medium file:text-slate-700 hover:file:bg-slate-50"
               />
+              {company.front_image_url ? (
+                <a
+                  href={toAssetUrl(company.front_image_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                >
+                  <img
+                    src={toAssetUrl(company.front_image_url)}
+                    alt="Front image"
+                    className="mt-2 w-full rounded-md border border-[var(--border)] bg-white object-contain"
+                  />
+                </a>
+              ) : null}
             </div>
           </div>
 
@@ -488,7 +675,7 @@ export default function CompanyDetailPage() {
 
       {tab === "payments" ? (
         <>
-          <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
+          <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
             {/* 3️⃣ Company status */}
             <h2 className="text-xs font-semibold text-[var(--text)]">Company status</h2>
             <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
@@ -508,11 +695,13 @@ export default function CompanyDetailPage() {
           </div>
 
           {/* 4️⃣ Payments (PAID only) */}
-          {companyStatus === "PAID" || company.company_status === "PAID" ? (
+          {paidForPayments ? (
             <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
-              <h2 className="text-xs font-semibold text-[var(--text)]">Payments</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-semibold text-[var(--text)]">Payments</h2>
+              </div>
 
-              <form onSubmit={handleAddPayment} className="mt-2 grid gap-3 md:grid-cols-3">
+              <form onSubmit={handleAddPayment} className="mt-2 grid gap-3 md:grid-cols-4">
                 <div className="space-y-1">
                   <label className="block text-[11px] font-medium text-slate-700">
                     Amount
@@ -535,7 +724,17 @@ export default function CompanyDetailPage() {
                     onChange={(e) => setPaymentDate(e.target.value)}
                   />
                 </div>
-                <div className="flex items-end justify-end">
+                <div className="space-y-1 md:col-span-2">
+                  <label className="block text-[11px] font-medium text-slate-700">
+                    Remarks
+                  </label>
+                  <Input
+                    placeholder="Notes about this payment (optional)"
+                    value={paymentRemarks}
+                    onChange={(e) => setPaymentRemarks(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-end justify-end md:justify-start">
                   <Button type="submit" size="sm" disabled={savingPayment}>
                     {savingPayment ? "Saving..." : "Add payment"}
                   </Button>
@@ -545,14 +744,15 @@ export default function CompanyDetailPage() {
               <div className="mt-3">
                 <Table
                   columns={[
-                    { key: "id", label: "ID" },
                     { key: "amount", label: "Amount" },
                     { key: "payment_date", label: "Payment date" },
+                    { key: "remarks", label: "Remarks" },
                   ]}
-                  rows={payments.map((p) => ({
+                  rows={paymentsList.map((p) => ({
                     id: p.id,
                     amount: p.amount,
-                    payment_date: p.payment_date,
+                    payment_date: p.payment_date || "-",
+                    remarks: p.remarks || "-",
                   }))}
                 />
               </div>
@@ -564,6 +764,8 @@ export default function CompanyDetailPage() {
           )}
         </>
       ) : null}
+
+      </DetailShell>
 
       <Modal
         open={verificationModalOpen}
@@ -643,6 +845,6 @@ export default function CompanyDetailPage() {
           </div>
         </div>
       </Modal>
-    </div>
+    </>
   );
 }
