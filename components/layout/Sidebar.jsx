@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { useUIStore } from "@/stores/ui";
 import { useAuthStore } from "@/stores/auth";
+import Button from "@/components/ui/Button";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard" },
@@ -40,6 +41,7 @@ function SidebarLink({ item, active }) {
 export default function Sidebar() {
   const pathname = usePathname();
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
+  const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const user = useAuthStore((state) => state.user);
 
   const role = user && user.role;
@@ -52,31 +54,45 @@ export default function Sidebar() {
   return (
     <aside
       className={clsx(
-        "hidden shrink-0 border-r border-[var(--border)] bg-[var(--bg)] md:flex md:flex-col",
-        sidebarOpen ? "w-60" : "w-16"
+        "hidden shrink-0 border-r border-[var(--border)] bg-[var(--bg)] transition-all duration-200 md:flex md:flex-col",
+        sidebarOpen ? "w-60" : "w-0 overflow-hidden border-transparent"
       )}
       aria-label="Main navigation"
     >
-      <div className="flex h-14 items-center gap-2 border-b border-[var(--border)] px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--accent-soft)] text-sm font-semibold text-[var(--accent)]">
-          C
-        </div>
-        {sidebarOpen && (
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-[var(--text)]">
-              CAPS Portal
-            </span>
-            <span className="text-xs text-slate-500">Job Placement</span>
+      {sidebarOpen && (
+        <>
+          <div className="flex h-14 items-center gap-2 border-b border-[var(--border)] px-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--accent-soft)] text-sm font-semibold text-[var(--accent)]">
+              C
+            </div>
+            <div className="flex flex-1 items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-[var(--text)]">
+                  CAPS Portal
+                </span>
+                <span className="text-xs text-slate-500">Job Placement</span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 px-0 text-slate-500 hover:text-slate-800"
+                onClick={toggleSidebar}
+                aria-label="Collapse sidebar"
+              >
+                «
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {items.map((item) => {
-          const active =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          return <SidebarLink key={item.href} item={item} active={active} />;
-        })}
-      </nav>
+          <nav className="flex-1 space-y-1 px-3 py-4">
+            {items.map((item) => {
+              const active =
+                pathname === item.href || pathname.startsWith(item.href + "/");
+              return <SidebarLink key={item.href} item={item} active={active} />;
+            })}
+          </nav>
+        </>
+      )}
     </aside>
   );
 }

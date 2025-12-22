@@ -13,6 +13,8 @@ export default function Header() {
   const logout = useAuthStore((state) => state.logout);
   const pageTitle = useUIStore((state) => state.pageTitle);
   const setSidebarOpen = useUIStore((state) => state.setSidebarOpen);
+  const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+  const sidebarOpen = useUIStore((state) => state.sidebarOpen);
 
   const debouncedSearch = useMemo(
     () =>
@@ -39,9 +41,9 @@ export default function Header() {
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="mr-1 inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-xs text-slate-500 hover:bg-slate-100 md:hidden"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open sidebar"
+          className="mr-1 inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-xs text-slate-500 hover:bg-slate-100"
+          onClick={() => (sidebarOpen ? toggleSidebar() : setSidebarOpen(true))}
+          aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
         >
           ☰
         </button>
