@@ -87,6 +87,7 @@ export default function InterviewDetailPage() {
   const pushToast = useUIStore((state) => state.pushToast);
 
   const getInterview = useInterviewsStore((state) => state.get);
+  const updateInterview = useInterviewsStore((state) => state.update);
   const updateStatus = useInterviewsStore((state) => state.updateStatus);
 
   const [companyLabel, setCompanyLabel] = useState("-");
@@ -190,9 +191,9 @@ export default function InterviewDetailPage() {
     if (!interview) return;
     setSubmittingRemarks(true);
     try {
-      const updated = await updateStatus(id, {
-        status: interview.status || "SCHEDULED",
-        placement_remarks: remarksDraft || "",
+      // Only update remarks; do not touch DOJ/salary/status here.
+      const updated = await updateInterview(id, {
+        remarks: remarksDraft || "",
       });
       setInterview(updated);
       setRemarksDraft(updated.remarks || "");

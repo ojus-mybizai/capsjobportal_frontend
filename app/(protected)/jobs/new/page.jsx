@@ -65,6 +65,7 @@ export default function NewJobPage() {
         description: values.description || undefined,
         responsibilities: values.responsibilities || undefined,
       };
+      console.log(payload)
 
       const job = await createJob(payload);
 
