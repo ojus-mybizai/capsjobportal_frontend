@@ -57,7 +57,6 @@ export default function CompanyDetailPage() {
   const [paymentDate, setPaymentDate] = useState("");
   const [paymentRemarks, setPaymentRemarks] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
-
   const paymentsByCompanyId = useCompaniesStore((state) => state.paymentsByCompanyId);
   const createPayment = useCompaniesStore((state) => state.createPayment);
 
@@ -117,6 +116,7 @@ export default function CompanyDetailPage() {
         location_link: company.location_link || "",
         contact_person: company.contact_person || "",
         contact_number: company.contact_number || "",
+        alternate_number: company.alternate_number || "",
         email: company.email || "",
         notes: company.notes || "",
       }
@@ -133,7 +133,8 @@ export default function CompanyDetailPage() {
         location_link: values.location_link || undefined,
         contact_person: values.contact_person || undefined,
         contact_number: values.contact_number || undefined,
-        email: values.email || undefined,
+        alternate_number: values.alternate_number || undefined,
+        email: values.email?.trim() ? values.email.trim() : undefined,
         notes: values.notes || undefined,
       };
 
@@ -408,6 +409,7 @@ export default function CompanyDetailPage() {
         statusSlot={headerStatus}
         tab={tab}
         setTab={setTab}
+        className="w-full max-w-6xl mx-auto"
         tabs={[
           { value: "overview", label: "Overview" },
           { value: "edit", label: "Edit" },
@@ -432,9 +434,10 @@ export default function CompanyDetailPage() {
       >
 
       {tab === "overview" ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-[var(--text)]">
+            {/* 1️⃣ Overview */}
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   Company
@@ -537,13 +540,15 @@ export default function CompanyDetailPage() {
                     href={toAssetUrl(company.front_image_url)}
                     target="_blank"
                     rel="noreferrer"
-                    className="block"
+                    className="mt-2 block w-full overflow-hidden rounded-md border border-[var(--border)] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                   >
-                    <img
-                      src={toAssetUrl(company.front_image_url)}
-                      alt="Front image"
-                      className="mt-2 w-full rounded-md border border-[var(--border)] bg-white object-contain"
-                    />
+                    <div className="flex h-48 items-center justify-center bg-white">
+                      <img
+                        src={toAssetUrl(company.front_image_url)}
+                        alt="Front image"
+                        className="max-h-44 w-auto max-w-full object-contain"
+                      />
+                    </div>
                   </a>
                 ) : (
                   <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-3 text-xs text-slate-600">
@@ -559,13 +564,15 @@ export default function CompanyDetailPage() {
                     href={toAssetUrl(company.visiting_card_url)}
                     target="_blank"
                     rel="noreferrer"
-                    className="block"
+                    className="mt-2 block w-full overflow-hidden rounded-md border border-[var(--border)] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                   >
-                    <img
-                      src={toAssetUrl(company.visiting_card_url)}
-                      alt="Visiting card"
-                      className="mt-2 w-full rounded-md border border-[var(--border)] bg-white object-contain"
-                    />
+                    <div className="flex h-48 items-center justify-center bg-white">
+                      <img
+                        src={toAssetUrl(company.visiting_card_url)}
+                        alt="Visiting card"
+                        className="max-h-44 w-auto max-w-full object-contain"
+                      />
+                    </div>
                   </a>
                 ) : (
                   <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-3 text-xs text-slate-600">

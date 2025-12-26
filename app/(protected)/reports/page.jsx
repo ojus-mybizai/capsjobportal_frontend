@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useUIStore } from "@/stores/ui";
-import { listJobs, getJob } from "@/services/jobs";
-import { listCandidates, getCandidate } from "@/services/candidates";
+import { listJobs, getJob, listJobRelatedCandidates } from "@/services/jobs";
+import { listCandidates, getCandidate, listCandidateRelatedJobs } from "@/services/candidates";
+import { listCompanies, getCompany } from "@/services/companies";
 import {
   interviewCandidateJobsReport,
   interviewJobCandidatesReport,
@@ -40,6 +41,7 @@ function ReportsPageInner() {
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
 
+  const companyIdParam = searchParams.get("company_id") || "";
   const jobIdParam = searchParams.get("job_id") || "";
   const candidateIdParam = searchParams.get("candidate_id") || "";
 
@@ -47,6 +49,17 @@ function ReportsPageInner() {
   const [candidateJobs, setCandidateJobs] = useState([]);
   const [loadingJobCandidates, setLoadingJobCandidates] = useState(false);
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
+  const [relatedCandidates, setRelatedCandidates] = useState([]);
+  const [relatedJobs, setRelatedJobs] = useState([]);
+  const [loadingRelatedCandidates, setLoadingRelatedCandidates] = useState(false);
+  const [loadingRelatedJobs, setLoadingRelatedJobs] = useState(false);
+
+  const [companyValue, setCompanyValue] = useState(companyIdParam);
+  const [jobValue, setJobValue] = useState(jobIdParam);
+  const [aiJobId, setAiJobId] = useState("");
+  const [aiCandidateId, setAiCandidateId] = useState("");
+  const [includeInactiveCandidates, setIncludeInactiveCandidates] = useState(false);
+  const [includeClosedJobs, setIncludeClosedJobs] = useState(false);
 
   const [jobLabelMap, setJobLabelMap] = useState({});
   const [candidateLabelMap, setCandidateLabelMap] = useState({});
@@ -66,6 +79,14 @@ function ReportsPageInner() {
     setPageMetadata("Reports", "Job-wise and candidate-wise reports");
   }, [setPageMetadata]);
 
+  useEffect(() => {
+    setCompanyValue(companyIdParam);
+  }, [companyIdParam]);
+
+  useEffect(() => {
+    setJobValue(jobIdParam);
+  }, [jobIdParam]);
+
   function setParam(key, value) {
     const params = new URLSearchParams(searchParams.toString());
     if (value == null || value === "") params.delete(key);
@@ -74,11 +95,59 @@ function ReportsPageInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
+  async function resolveCompanyLabel({ value }) {
+    if (!value) return "";
+    try {
+      const c = await getCompany(value);
+      return getCompanyOptionLabel(c) || `Company #${value}`;
+    } catch {
+      return `Company #${value}`;
+    }
+  }
+
+  async function loadCompanyOptions({ query, limit }) {
+    const result = await listCompanies({
+      page: 1,
+      limit: limit || 20,
+      q: (query || "").trim() || undefined,
+    });
+
+    const items = Array.isArray(result?.items)
+      ? result.items
+      : Array.isArray(result?.data)
+      ? result.data
+      : Array.isArray(result)
+      ? result
+      : [];
+
+    return items;
+  }
+
+  function getCompanyOptionLabel(item) {
+    if (!item) return "";
+    return item.name || item.company_name || item.title || item.label || "";
+  }
+
+  function getCompanyOptionValue(item) {
+    if (!item) return "";
+    return item.id != null
+      ? String(item.id)
+      : item.uuid != null
+      ? String(item.uuid)
+      : item.company_id != null
+      ? String(item.company_id)
+      : item.value != null
+      ? String(item.value)
+      : "";
+  }
+
   async function loadJobOptions({ query, limit }) {
+    if (!companyValue) return [];
     const result = await listJobs({
       page: 1,
       limit: limit || 20,
       q: (query || "").trim() || undefined,
+      company_id: companyValue || undefined,
     });
 
     const items = Array.isArray(result?.items)
@@ -178,14 +247,14 @@ function ReportsPageInner() {
     let active = true;
 
     async function loadJobWiseCandidates() {
-      if (!jobIdParam) {
+      if (!companyValue || !jobValue) {
         setJobCandidates([]);
         return;
       }
       setLoadingJobCandidates(true);
       try {
         const result = await interviewJobCandidatesReport({
-          job_id: jobIdParam,
+          job_id: jobValue,
           page: 1,
           limit: 100,
         });
@@ -209,7 +278,7 @@ function ReportsPageInner() {
     return () => {
       active = false;
     };
-  }, [jobIdParam, pushToast]);
+  }, [companyValue, jobValue, pushToast]);
 
   useEffect(() => {
     let active = true;
@@ -371,30 +440,65 @@ function ReportsPageInner() {
           <div>
             <div className="text-sm font-semibold text-slate-900">Job wise candidate data</div>
             <div className="mt-1 text-xs text-slate-600">
-              Select a job to see candidates mapped to it.
+              Select a company first, then a job to see candidates mapped to it.
             </div>
           </div>
 
-          <div className="w-full md:w-[360px]">
-            <div className="mb-1 text-xs font-medium text-slate-600">Job</div>
-            <AsyncSearchSelect
-              value={jobIdParam}
-              onChange={(v) => setParam("job_id", v || "")}
-              onSelectOption={(item) => {
-                const key = getJobOptionValue(item);
-                const label = getJobOptionLabel(item);
-                if (key && label) {
-                  setJobLabelMap((prev) => ({ ...prev, [String(key)]: label }));
-                }
-              }}
-              placeholder="Select a job"
-              searchPlaceholder="Search jobs..."
-              loadOptions={loadJobOptions}
-              resolveSelectedLabel={resolveJobLabel}
-              getOptionLabel={getJobOptionLabel}
-              getOptionValue={getJobOptionValue}
-              allowClear
-            />
+          <div className="grid w-full gap-3 md:w-[520px] md:grid-cols-2">
+            <div>
+              <div className="mb-1 text-xs font-medium text-slate-600">Company</div>
+              <AsyncSearchSelect
+                value={companyValue}
+                onChange={(v) => {
+                  setCompanyValue(v || "");
+                  setParam("company_id", v || "");
+                  setParam("job_id", ""); // reset job when company changes
+                  setJobValue("");
+                }}
+                onSelectOption={(item) => {
+                  const key = getCompanyOptionValue(item);
+                  setCompanyValue(key || "");
+                  setParam("company_id", key || "");
+                  setParam("job_id", "");
+                  setJobValue("");
+                }}
+                placeholder="Select a company"
+                searchPlaceholder="Search companies..."
+                loadOptions={loadCompanyOptions}
+                resolveSelectedLabel={resolveCompanyLabel}
+                getOptionLabel={getCompanyOptionLabel}
+                getOptionValue={getCompanyOptionValue}
+                allowClear
+              />
+            </div>
+
+            <div>
+              <div className="mb-1 text-xs font-medium text-slate-600">Job</div>
+              <AsyncSearchSelect
+                value={jobValue}
+                onChange={(v) => {
+                  setJobValue(v || "");
+                  setParam("job_id", v || "");
+                }}
+                onSelectOption={(item) => {
+                  const key = getJobOptionValue(item);
+                  const label = getJobOptionLabel(item);
+                  if (key && label) {
+                    setJobLabelMap((prev) => ({ ...prev, [String(key)]: label }));
+                  }
+                  setJobValue(key || "");
+                  setParam("job_id", key || "");
+                }}
+                placeholder={companyValue ? "Select a job" : "Select a company first"}
+                searchPlaceholder="Search jobs..."
+                loadOptions={loadJobOptions}
+                resolveSelectedLabel={resolveJobLabel}
+                getOptionLabel={getJobOptionLabel}
+                getOptionValue={getJobOptionValue}
+                allowClear
+                disabled={!companyValue}
+              />
+            </div>
           </div>
         </div>
 

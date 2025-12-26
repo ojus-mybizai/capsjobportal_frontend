@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
@@ -71,6 +71,35 @@ function InterviewsPageInner() {
 
   const [query, setQuery] = useState(qParam);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const activeFilters = useMemo(() => {
+    const items = [];
+    if (companyIdParam) items.push({ key: "company_id", label: "Company", value: companyIdParam });
+    if (jobIdParam) items.push({ key: "job_id", label: "Job", value: jobIdParam });
+    if (candidateIdParam) items.push({ key: "candidate_id", label: "Candidate", value: candidateIdParam });
+    if (statusParam) items.push({ key: "status", label: "Status", value: statusParam });
+    if (qParam) items.push({ key: "q", label: "Remarks", value: qParam });
+    if (fromDateParam) items.push({ key: "from_date", label: "From date", value: fromDateParam });
+    if (toDateParam) items.push({ key: "to_date", label: "To date", value: toDateParam });
+    if (createdFromParam) items.push({ key: "created_from", label: "Created from", value: createdFromParam });
+    if (createdToParam) items.push({ key: "created_to", label: "Created to", value: createdToParam });
+    if (isActiveParam) items.push({ key: "is_active", label: "Active", value: isActiveParam });
+    if (sortByParam) items.push({ key: "sort_by", label: "Sort by", value: sortByParam });
+    if (orderParam) items.push({ key: "order", label: "Order", value: orderParam });
+    return items;
+  }, [
+    companyIdParam,
+    jobIdParam,
+    candidateIdParam,
+    statusParam,
+    qParam,
+    fromDateParam,
+    toDateParam,
+    createdFromParam,
+    createdToParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+  ]);
 
   const filtersKey = [
     companyIdParam,
@@ -126,6 +155,14 @@ function InterviewsPageInner() {
     const qs = params.toString();
     if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  function clearSingleFilter(key) {
+    if (key === "company_id") patchParams({ company_id: "", job_id: "" });
+    else if (key === "job_id") setParam("job_id", "");
+    else if (key === "candidate_id") setParam("candidate_id", "");
+    else setParam(key, "");
+    if (key === "q") setQuery("");
   }
 
   function setParam(key, value, { resetPage = true } = {}) {
@@ -336,115 +373,158 @@ function InterviewsPageInner() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl bg-[var(--panel)] p-4 ring-1 ring-[var(--border)] shadow-[var(--shadow-card)]">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="flex flex-wrap items-end gap-3 text-[13px] text-[var(--muted-text)]">
-          <div className="w-52 space-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-muted)] p-3">
-            <AsyncSearchSelect
-              value={companyIdParam}
-              onChange={(v) => {
-                patchParams({ company_id: v || "", job_id: "" });
-              }}
-              placeholder="All companies"
-              searchPlaceholder="Search companies..."
-              loadOptions={loadCompanyOptions}
-              getOptionValue={(c) => c.id}
-              getOptionLabel={(c) =>
-                c.name || c.title || c.company_name || `Company #${c.id}`
-              }
-              allowClear
-            />
-          </div>
-          <div className="w-52 space-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-muted)] p-3">
-            <AsyncSearchSelect
-              value={jobIdParam}
-              onChange={(v) => {
-                setParam("job_id", v || "");
-              }}
-              disabled={!companyIdParam}
-              placeholder={companyIdParam ? "All jobs" : "Select company first"}
-              searchPlaceholder="Search jobs..."
-              loadOptions={loadJobOptions}
-              getOptionValue={(j) => j.id}
-              getOptionLabel={(j) => j.title || j.name || `Job #${j.id}`}
-              allowClear={!!companyIdParam}
-            />
-          </div>
-          <div className="w-52 space-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-muted)] p-3">
-            <AsyncSearchSelect
-              value={candidateIdParam}
-              onChange={(v) => {
-                setParam("candidate_id", v || "");
-              }}
-              placeholder="All candidates"
-              searchPlaceholder="Search candidates..."
-              loadOptions={loadCandidateOptions}
-              getOptionValue={(c) => c.id}
-              getOptionLabel={(c) =>
-                c.full_name || c.name || c.candidate_name || `Candidate #${c.id}`
-              }
-              allowClear
-            />
-          </div>
-          <div className="w-48 space-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-muted)] p-3">
-            <Select
-              value={statusParam}
-              onChange={(e) => {
-                setParam("status", e.target.value);
-              }}
-            >
-              {STATUS_FILTERS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="w-44 space-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-muted)] p-3">
-            <Input
-              type="date"
-              value={fromDateParam}
-              onChange={(e) => {
-                setParam("from_date", e.target.value);
-              }}
-            />
-          </div>
-          <div className="w-auto px-1 text-[var(--muted-text)]">-</div>
-          <div className="w-44 space-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-muted)] p-3">
-            <Input
-              type="date"
-              value={toDateParam}
-              onChange={(e) => {
-                setParam("to_date", e.target.value);
-              }}
-            />
-          </div>
-
-          <Button type="button" variant="outline" size="sm" onClick={() => setShowAdvanced((v) => !v)}>
-            {showAdvanced ? "Less filters" : "More filters"}
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => clearFilters()}
-          >
-            Clear
-          </Button>
-
-          {loading && <span className="text-[13px] text-[var(--muted-text)]">Loading interviews...</span>}
+      <div className="relative overflow-hidden rounded-xl bg-[var(--bg)] p-5 ring-1 ring-[var(--border)] shadow-sm transition-all duration-300 hover:-translate-y-[1px] hover:shadow-md">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[var(--bg-muted)]/60 via-transparent to-[var(--bg-muted)]/60 opacity-0 transition-opacity duration-500 hover:opacity-100" />
+        <div className="flex flex-col gap-4 relative">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Interview filters</div>
+              <div className="text-base font-semibold text-slate-800">Narrow down interviews</div>
             </div>
-            <Link href="/interviews/new">
-              <Button size="sm">Schedule interview</Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvanced((v) => !v)}
+              >
+                {showAdvanced ? "Hide advanced" : "Advanced"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  clearFilters();
+                }}
+              >
+                Clear all
+              </Button>
+              <Link href="/interviews/new">
+                <Button size="sm">Schedule interview</Button>
+              </Link>
+            </div>
+          </div>
+
+          {activeFilters.length ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-muted)]/70 p-2">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Active
+              </span>
+              {activeFilters.map((f) => (
+                <button
+                  key={`${f.key}-${f.value}`}
+                  type="button"
+                  onClick={() => clearSingleFilter(f.key)}
+                  className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-[var(--border)] hover:ring-[var(--accent)] transition"
+                  title="Remove filter"
+                >
+                  <span className="text-slate-500">{f.label}:</span>
+                  <span>{f.value}</span>
+                  <span className="text-slate-400">×</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-muted)]/40 px-3 py-2 text-xs text-slate-500">
+              No active filters. Refine the list below.
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-12 md:items-end">
+            <div className="md:col-span-3 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Company</div>
+              <AsyncSearchSelect
+                value={companyIdParam}
+                onChange={(v) => {
+                  patchParams({ company_id: v || "", job_id: "" });
+                }}
+                placeholder="All companies"
+                searchPlaceholder="Search companies..."
+                loadOptions={loadCompanyOptions}
+                getOptionValue={(c) => c.id}
+                getOptionLabel={(c) => c.name || c.title || c.company_name || `Company #${c.id}`}
+                allowClear
+              />
+            </div>
+
+            <div className="md:col-span-3 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Job</div>
+              <AsyncSearchSelect
+                value={jobIdParam}
+                onChange={(v) => {
+                  setParam("job_id", v || "");
+                }}
+                disabled={!companyIdParam}
+                placeholder={companyIdParam ? "All jobs" : "Select company first"}
+                searchPlaceholder="Search jobs..."
+                loadOptions={loadJobOptions}
+                getOptionValue={(j) => j.id}
+                getOptionLabel={(j) => j.title || j.name || `Job #${j.id}`}
+                allowClear={!!companyIdParam}
+              />
+            </div>
+
+            <div className="md:col-span-3 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Candidate</div>
+              <AsyncSearchSelect
+                value={candidateIdParam}
+                onChange={(v) => {
+                  setParam("candidate_id", v || "");
+                }}
+                placeholder="All candidates"
+                searchPlaceholder="Search candidates..."
+                loadOptions={loadCandidateOptions}
+                getOptionValue={(c) => c.id}
+                getOptionLabel={(c) => c.full_name || c.name || c.candidate_name || `Candidate #${c.id}`}
+                allowClear
+              />
+            </div>
+
+            <div className="md:col-span-1.5 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Status</div>
+              <Select
+                value={statusParam}
+                onChange={(e) => {
+                  setParam("status", e.target.value);
+                }}
+              >
+                {STATUS_FILTERS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="md:col-span-2 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Interview from</div>
+              <Input
+                type="date"
+                value={fromDateParam}
+                onChange={(e) => {
+                  setParam("from_date", e.target.value);
+                }}
+              />
+            </div>
+
+            <div className="md:col-span-2 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Interview to</div>
+              <Input
+                type="date"
+                value={toDateParam}
+                onChange={(e) => {
+                  setParam("to_date", e.target.value);
+                }}
+              />
+            </div>
           </div>
 
           {showAdvanced ? (
-            <div className="flex flex-col gap-3 rounded-xl bg-[var(--bg-muted)] p-3 md:flex-row md:flex-wrap md:items-end">
-              <div className="min-w-[280px]">
-                <div className="mb-1 text-[13px] font-medium text-[var(--muted-text)]">Search remarks</div>
+            <div className="grid gap-3 md:grid-cols-12 md:items-end pt-2 border-t border-dashed border-[var(--border)]">
+              <div className="md:col-span-4 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Search remarks</div>
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -452,8 +532,8 @@ function InterviewsPageInner() {
                 />
               </div>
 
-              <div className="min-w-[170px]">
-                <div className="mb-1 text-[13px] font-medium text-[var(--muted-text)]">Created from</div>
+              <div className="md:col-span-3 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Created from</div>
                 <Input
                   type="date"
                   value={createdFromParam}
@@ -461,8 +541,8 @@ function InterviewsPageInner() {
                 />
               </div>
 
-              <div className="min-w-[170px]">
-                <div className="mb-1 text-[13px] font-medium text-[var(--muted-text)]">Created to</div>
+              <div className="md:col-span-3 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Created to</div>
                 <Input
                   type="date"
                   value={createdToParam}
@@ -470,8 +550,8 @@ function InterviewsPageInner() {
                 />
               </div>
 
-              <div className="min-w-[160px]">
-                <div className="mb-1 text-[13px] font-medium text-[var(--muted-text)]">Active</div>
+              <div className="md:col-span-2 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Active</div>
                 <Select value={isActiveParam} onChange={(e) => setParam("is_active", e.target.value)}>
                   <option value="">All</option>
                   <option value="true">Active</option>
@@ -479,8 +559,8 @@ function InterviewsPageInner() {
                 </Select>
               </div>
 
-              <div className="min-w-[200px]">
-                <div className="mb-1 text-[13px] font-medium text-[var(--muted-text)]">Sort by</div>
+              <div className="md:col-span-2 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Sort by</div>
                 <Select value={sortByParam} onChange={(e) => setParam("sort_by", e.target.value)}>
                   <option value="">created_at</option>
                   <option value="updated_at">updated_at</option>
@@ -489,8 +569,8 @@ function InterviewsPageInner() {
                 </Select>
               </div>
 
-              <div className="min-w-[140px]">
-                <div className="mb-1 text-[13px] font-medium text-[var(--muted-text)]">Order</div>
+              <div className="md:col-span-2 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Order</div>
                 <Select value={orderParam} onChange={(e) => setParam("order", e.target.value)}>
                   <option value="">desc</option>
                   <option value="asc">asc</option>
@@ -499,6 +579,15 @@ function InterviewsPageInner() {
               </div>
             </div>
           ) : null}
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="text-xs text-slate-500">{loading ? "Loading…" : null}</div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <span>Showing page {page}</span>
+              <span className="h-1 w-1 rounded-full bg-slate-300" />
+              <span>{activeFilters.length} active filters</span>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,8 +20,6 @@ const schema = z.object({
   experience_level: z
     .enum(["FRESHER", "0_1_YEARS", "1_3_YEARS", "3_5_YEARS", "5_PLUS_YEARS"])
     .optional(),
-  experience: z.string().optional(),
-  qualification: z.string().optional(),
   job_categories: z.array(z.string().min(1)).optional(),
   job_type: z.enum(["FULL_TIME", "PART_TIME", "INTERNSHIP"]).optional(),
   status: z.enum(["OPEN", "FULFILLED", "DROPPED"]).optional(),
@@ -62,6 +60,13 @@ export default function JobForm({
   const [educationOptions, setEducationOptions] = useState([]);
   const [degreeOptions, setDegreeOptions] = useState([]);
   const [jobCategoryOptions, setJobCategoryOptions] = useState([]);
+
+  const formatOptionLabel = useCallback((value, options) => {
+    return (
+      options.find((opt) => String(opt.value) === String(value))?.label || value
+    );
+  }, []);
+
   const [skillInput, setSkillInput] = useState("");
   const [educationInput, setEducationInput] = useState("");
   const [degreeInput, setDegreeInput] = useState("");
@@ -71,6 +76,9 @@ export default function JobForm({
   const education = watch("education") || [];
   const degree = watch("degree") || [];
   const jobCategories = watch("job_categories") || [];
+  const selectedCompanyId = watch("company_id");
+  const selectedLocation = watch("location_area_id");
+  const selectedContact = watch("contact_person");
 
   useEffect(() => {
     register("job_categories");
@@ -191,6 +199,40 @@ export default function JobForm({
     }
   }
 
+  useEffect(() => {
+    let active = true;
+    async function applyCompanyDefaults() {
+      if (!selectedCompanyId) return;
+      try {
+        const company = await getCompany(selectedCompanyId);
+        if (!active || !company) return;
+        if (!selectedLocation && company.location_area_id) {
+          setValue("location_area_id", String(company.location_area_id), { shouldValidate: true });
+          // ensure the location option exists in the dropdown
+          const exists = locationOptions.some((opt) => String(opt.value) === String(company.location_area_id));
+          if (!exists) {
+            setLocationOptions((opts) => [
+              ...opts,
+              {
+                value: String(company.location_area_id),
+                label: company.location_area_name || company.location || `Location #${company.location_area_id}`,
+              },
+            ]);
+          }
+        }
+        if (!selectedContact && company.contact_person) {
+          setValue("contact_person", company.contact_person, { shouldValidate: true });
+        }
+      } catch {
+        // fail silently; form remains usable
+      }
+    }
+    applyCompanyDefaults();
+    return () => {
+      active = false;
+    };
+  }, [selectedCompanyId, selectedLocation, selectedContact, setValue, locationOptions]);
+
   async function loadCompanyOptions({ query, limit }) {
     const result = await listCompanies({ page: 1, limit: limit || 20, q: query || "" });
     if (Array.isArray(result?.items)) return result.items;
@@ -211,57 +253,65 @@ export default function JobForm({
       className="space-y-3 text-sm"
     >
       <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-700">Company</label>
-          <Controller
-            control={control}
-            name="company_id"
-            render={({ field }) => (
-              <AsyncSearchSelect
-                value={field.value}
-                onChange={field.onChange}
-                disabled={disableCompanyField}
-                placeholder="Select company"
-                searchPlaceholder="Search companies..."
-                loadOptions={loadCompanyOptions}
-                getOptionValue={(c) => c.id}
-                getOptionLabel={(c) => c.name || c.title || c.company_name || `Company #${c.id}`}
-                resolveSelectedLabel={resolveCompanyLabel}
-                allowClear={!disableCompanyField}
-              />
-            )}
-          />
-          {errors.company_id && (
-            <p className="mt-1 text-xs text-[var(--danger)]">
-              {errors.company_id.message}
-            </p>
+        <label className="block text-xs font-medium text-slate-700">Company</label>
+        <Controller
+          control={control}
+          name="company_id"
+          render={({ field }) => (
+            <AsyncSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              disabled={disableCompanyField}
+              placeholder="Select company"
+              searchPlaceholder="Search companies..."
+              loadOptions={loadCompanyOptions}
+              getOptionValue={(c) => c.id}
+              getOptionLabel={(c) => c.name || c.title || c.company_name || `Company #${c.id}`}
+              resolveSelectedLabel={resolveCompanyLabel}
+              allowClear={!disableCompanyField}
+            />
           )}
-        </div>
-      
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-1">
-        <label className="block text-xs font-medium text-slate-700">Title</label>
-        <Input {...register("title")} />
+        />
+        {errors.company_id && (
+          <p className="mt-1 text-xs text-[var(--danger)]">
+            {errors.company_id.message}
+          </p>
+        )}
         {errors.title && (
           <p className="mt-1 text-xs text-[var(--danger)]">{errors.title.message}</p>
         )}
       </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-700">
-            Experience level
+            Location (defaults from company)
           </label>
-          <Select {...register("experience_level")}>
-            <option value="">Select experience level</option>
-            <option value="FRESHER">Fresher</option>
-            <option value="0_1_YEARS">0-1 years</option>
-            <option value="1_3_YEARS">1-3 years</option>
-            <option value="3_5_YEARS">3-5 years</option>
-            <option value="5_PLUS_YEARS">5+ years</option>
+          <Select {...register("location_area_id")}>
+            <option value="">Select location</option>
+            {locationOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Contact person (defaults from company)
+          </label>
+          <Input placeholder="Who to contact" {...register("contact_person")} />
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">Job title</label>
+          <Input {...register("title")} />
+          {errors.title && (
+            <p className="mt-1 text-xs text-[var(--danger)]">{errors.title.message}</p>
+          )}
+        </div>
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-700">
             Job type
@@ -271,17 +321,6 @@ export default function JobForm({
             <option value="FULL_TIME">Full time</option>
             <option value="PART_TIME">Part time</option>
             <option value="INTERNSHIP">Internship</option>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-700">Location</label>
-          <Select {...register("location_area_id")}>
-            <option value="">Select location</option>
-            {locationOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
           </Select>
         </div>
       </div>
@@ -315,7 +354,7 @@ export default function JobForm({
                   key={`${item}-${index}`}
                   className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
                 >
-                  <span>{item}</span>
+                  <span>{formatOptionLabel(item, jobCategoryOptions)}</span>
                   <button
                     type="button"
                     onClick={() => removeJobCategory(index)}
@@ -336,24 +375,16 @@ export default function JobForm({
         </div>
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-700">
-            Contact person
+            Experience level
           </label>
-          <Input placeholder="Who to contact" {...register("contact_person")} />
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-700">
-            Qualification
-          </label>
-          <Input placeholder="e.g. B.Tech" {...register("qualification")} />
-        </div>
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-700">
-            Experience text
-          </label>
-          <Input placeholder="e.g. 5+ years" {...register("experience")} />
+          <Select {...register("experience_level")}>
+            <option value="">Select experience level</option>
+            <option value="FRESHER">Fresher</option>
+            <option value="0_1_YEARS">0-1 years</option>
+            <option value="1_3_YEARS">1-3 years</option>
+            <option value="3_5_YEARS">3-5 years</option>
+            <option value="5_PLUS_YEARS">5+ years</option>
+          </Select>
         </div>
       </div>
 
@@ -386,7 +417,7 @@ export default function JobForm({
                   key={`${skill}-${index}`}
                   className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
                 >
-                  <span>{skill}</span>
+                  <span>{formatOptionLabel(skill, skillOptions)}</span>
                   <button
                     type="button"
                     onClick={() => removeSkill(index)}
@@ -433,7 +464,7 @@ export default function JobForm({
                   key={`${item}-${index}`}
                   className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
                 >
-                  <span>{item}</span>
+                  <span>{formatOptionLabel(item, educationOptions)}</span>
                   <button
                     type="button"
                     onClick={() => removeEducation(index)}
@@ -482,7 +513,7 @@ export default function JobForm({
                 key={`${item}-${index}`}
                 className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
               >
-                <span>{item}</span>
+                <span>{formatOptionLabel(item, degreeOptions)}</span>
                 <button
                   type="button"
                   onClick={() => removeDegree(index)}
@@ -502,7 +533,7 @@ export default function JobForm({
         )}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-700">
             Status

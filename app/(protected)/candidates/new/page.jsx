@@ -40,7 +40,7 @@ export default function NewCandidatePage() {
 
       const basePayload = {
         full_name: values.full_name,
-        email: values.email || undefined,
+        email: values.email?.trim() ? values.email.trim() : undefined,
         mobile_number: values.mobile_number,
         alternate_mobile_number: values.alternate_mobile_number || undefined,
         address: values.address || undefined,

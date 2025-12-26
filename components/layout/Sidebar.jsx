@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   },
   { label: "Payments", href: "/payments" },
   { label: "Settings", href: "/settings" },
+  {label: "Ai Search" , href:"/reports/ai-search"},
 ];
 
 function SidebarLink({ item, active }) {
@@ -85,10 +86,11 @@ export default function Sidebar() {
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-3 py-4">
-            {items.map((item) => {
+            {items.map((item, idx) => {
               const active =
                 pathname === item.href || pathname.startsWith(item.href + "/");
-              return <SidebarLink key={item.href} item={item} active={active} />;
+              const key = item.href ? `${item.href}-${idx}` : `${item.label}-${idx}`;
+              return <SidebarLink key={key} item={item} active={active} />;
             })}
           </nav>
         </>

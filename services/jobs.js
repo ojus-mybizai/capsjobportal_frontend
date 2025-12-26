@@ -1,6 +1,11 @@
 import { api } from "./api";
 import { USE_MOCK_DATA, mockJobs } from "./mockData";
-import { stripEmpty, ensurePagedResult, ensureObjectData } from "./formatters";
+import {
+  stripEmpty,
+  ensurePagedResult,
+  ensureObjectData,
+  ensureArrayData,
+} from "./formatters";
 
 export function listJobs(params = {}) {
   if (USE_MOCK_DATA) {
@@ -60,6 +65,17 @@ export function getJob(id) {
   return api
     .get(`jobs/${id}`)
     .then((payload) => ensureObjectData(payload, "Failed to load job"));
+}
+
+export function listJobRelatedCandidates(jobId, params = {}) {
+  if (USE_MOCK_DATA) {
+    return Promise.resolve([]);
+  }
+
+  const resolved = { ...params };
+  return api
+    .get(`jobs/${jobId}/related-candidates`, { params: resolved })
+    .then((payload) => ensureArrayData(payload, "Failed to load related candidates"));
 }
 
 export function createJob(payload) {

@@ -34,7 +34,8 @@ export default function NewCompanyPage() {
         location_link: values.location_link || undefined,
         contact_person: values.contact_person || undefined,
         contact_number: values.contact_number || undefined,
-        email: values.email || undefined,
+        alternate_number: values.alternate_number || undefined,
+        email: values.email?.trim() ? values.email.trim() : undefined,
         notes: values.notes || undefined,
       };
 

@@ -9,6 +9,8 @@ import Button from "@/components/ui/Button";
 import { useMastersStore } from "@/stores/masters";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
 
+const emailSchema = z.string().trim().email("Enter a valid email").or(z.literal("")).optional();
+
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
   category_id: z.string().optional(),
@@ -17,7 +19,8 @@ const schema = z.object({
   location_link: z.string().optional(),
   contact_person: z.string().optional(),
   contact_number: z.string().optional(),
-  email: z.string().email("Enter a valid email").optional(),
+  alternate_number: z.string().optional(),
+  email: emailSchema,
   notes: z.string().optional(),
 });
 
@@ -225,6 +228,17 @@ export default function CompanyForm({ defaultValues, onSubmit, submitting }) {
           {errors.contact_number && (
             <p className="mt-1 text-xs text-[var(--danger)]">
               {errors.contact_number.message}
+            </p>
+          )}
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Alternate number
+          </label>
+          <Input placeholder="+1-555-987-6543" {...register("alternate_number")} />
+          {errors.alternate_number && (
+            <p className="mt-1 text-xs text-[var(--danger)]">
+              {errors.alternate_number.message}
             </p>
           )}
         </div>

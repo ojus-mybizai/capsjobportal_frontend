@@ -2,21 +2,9 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { api } from "@/services/api";
@@ -64,15 +52,29 @@ function formatCompactCurrency(v = 0) {
 }
 
 // ---------- small presentational components ----------
-function FinanceTile({ title, value, loading, highlight }) {
+function FinanceTile({ title, value, loading, highlight, color, onClick }) {
+  const bandColor = color || "var(--accent)";
   return (
     <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (!onClick) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--shadow-card)] ${
         highlight ? "ring-1 ring-[var(--accent)]/70" : "ring-1 ring-slate-200/80"
-      }`}
+      } ${onClick ? "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" : ""}`}
     >
       <div className="flex items-center gap-2">
-        <span className="h-1.5 w-8 rounded-full bg-[var(--accent)]/80" />
+        <span
+          className="h-1.5 w-8 rounded-full"
+          style={{ backgroundColor: bandColor, boxShadow: `${bandColor}33 0px 0px 0px 4px` }}
+        />
         <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{title}</div>
       </div>
       <div className="mt-3 text-2xl font-semibold text-slate-900">
@@ -142,42 +144,36 @@ function DonutDistribution({ items = [], onSelect }) {
       </div>
       <div className="flex-1 space-y-3 rounded-xl border border-slate-200 bg-white/80 p-4 shadow-[var(--shadow-card)] backdrop-blur">
         {data.map((it) => (
-          <div
+          <button
             key={it.label}
-            className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+            type="button"
+            onClick={() => onSelect?.(it)}
+            className="group flex w-full cursor-pointer items-center justify-between rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-left text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50/90 hover:shadow-lg hover:ring-1 hover:ring-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            style={{
+              borderColor: `${it.color || "#38bdf8"}33`,
+              boxShadow: `0 8px 18px ${it.color || "#38bdf8"}22`,
+            }}
           >
             <div className="flex items-center gap-3">
               <span
-                className="inline-block h-2.5 w-2.5 rounded-full ring-4 ring-[var(--accent-soft)]/70"
+                className="inline-block h-2.5 w-2.5 rounded-full ring-4 ring-[var(--accent-soft)]/70 transition group-hover:scale-110"
                 style={{ backgroundColor: it.color }}
               />
               <div className="flex flex-col">
-                <span className="font-semibold text-slate-900">{it.label}</span>
-                <span className="text-[11px] text-slate-500">Share in mix</span>
+                <span className="font-semibold text-slate-900 group-hover:text-[var(--accent)]">{it.label}</span>
+                <span className="text-[11px] text-slate-500 group-hover:text-slate-700">Share in mix</span>
               </div>
             </div>
-            <div className="text-sm font-semibold text-[var(--accent)]">{safeNumber(it.value)}</div>
-          </div>
+            <div className="text-sm font-semibold text-[var(--accent)] group-hover:translate-x-0.5 group-hover:text-slate-900">
+              {safeNumber(it.value)}
+            </div>
+          </button>
         ))}
         <div className="flex items-center justify-between rounded-lg border border-[var(--accent-soft)] bg-[var(--accent-soft)]/60 px-3 py-2 text-xs font-semibold text-slate-800 shadow-inner">
           <span>Total mix</span>
           <span className="text-[var(--accent)]">{safeNumber(total)}</span>
         </div>
       </div>
-    </div>
-  );
-}
-
-function FinanceTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0]?.payload;
-  return (
-    <div className="rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-100 shadow-lg ring-1 ring-slate-700">
-      <div className="font-semibold">{p?.period}</div>
-      <div>Company: {formatCurrency(p?.company_payments)}</div>
-      <div>Candidate: {formatCurrency(p?.candidate_payments)}</div>
-      <div>Placement: {formatCurrency(p?.placement_income)}</div>
-      <div className="font-semibold text-[var(--accent)]">Total: {formatCurrency(p?.total)}</div>
     </div>
   );
 }
@@ -199,10 +195,8 @@ function DashboardPageInner() {
   const pushToast = useUIStore((s) => s.pushToast);
 
   const [loadingSummary, setLoadingSummary] = useState(true);
-  const [loadingFinance, setLoadingFinance] = useState(true);
   const [loadingPendingDues, setLoadingPendingDues] = useState(false);
   const [summary, setSummary] = useState(null);
-  const [financeItems, setFinanceItems] = useState([]);
   const [pendingDues, setPendingDues] = useState(null);
 
   const rangeParam = searchParams.get("range") || "";
@@ -362,33 +356,6 @@ function DashboardPageInner() {
     loadPendingDues(dueBefore);
   }, [dueBefore]);
 
-  useEffect(() => {
-    let active = true;
-    async function loadFinance() {
-      setLoadingFinance(true);
-      try {
-        const result = await api.get("reports/finance/breakdown", {
-          params: { group_by: "month", ...dateParams },
-        });
-        if (!active) return;
-        const items = Array.isArray(result?.items) ? result.items : [];
-        setFinanceItems(items);
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load finance breakdown",
-          description: (error && error.message) || "An error occurred while loading finance chart data.",
-        });
-      } finally {
-        if (active) setLoadingFinance(false);
-      }
-    }
-    loadFinance();
-    return () => {
-      active = false;
-    };
-  }, [dateKey, pushToast]);
-
   const companiesPaid = safeNumber(summary?.companies?.paid);
   const companiesFree = safeNumber(summary?.companies?.free);
 
@@ -438,21 +405,6 @@ function DashboardPageInner() {
     { label: "Rejected (Candidate)", status: "REJECTED_BY_CANDIDATE", value: intRejectedCandidate, color: "#fb7185" },
   ];
 
-  const financeChartData = useMemo(
-    () =>
-      financeItems.map((it) => ({
-        period: it?.period_label || it?.period || "",
-        company_payments: safeNumber(it?.company_payments),
-        candidate_payments: safeNumber(it?.candidate_payments),
-        placement_income: safeNumber(it?.placement_income),
-        total:
-          safeNumber(it?.company_payments) +
-          safeNumber(it?.candidate_payments) +
-          safeNumber(it?.placement_income),
-      })),
-    [financeItems]
-  );
-
   function getInterviewDateParams() {
     return {
       ...(dateParams.start_date ? { start_date: dateParams.start_date } : {}),
@@ -476,13 +428,18 @@ function DashboardPageInner() {
   }
 
   return (
-    <div className="space-y-9">
+    <div className="min-h-screen space-y-9  px-1 pb-10">
       <div className="px-1">
-        <div className="text-[26px] font-semibold tracking-tight text-slate-900">CAPS Tally Jobs</div>
+        <div className="text-[26px] font-semibold tracking-tight text-slate-900">
+          CAPS Tally Jobs
+        </div>
+        <p className="mt-1 text-sm text-slate-600">
+          A quick pulse across jobs, companies, candidates, and revenue.
+        </p>
       </div>
 
       {/* Date range + status distribution */}
-      <section className="rounded-2xl bg-white p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200 text-slate-900">
+      <section className="rounded-2xl bg-white/90 p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200/80 text-slate-900 backdrop-blur">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-base font-semibold text-slate-900">Date range</div>
@@ -490,11 +447,15 @@ function DashboardPageInner() {
               <div className="inline-flex rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200">
                 <button
                   type="button"
-                  className={
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
                     selectedRange === "today"
-                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
-                  }
+                      ? "text-white shadow-sm"
+                      : "text-slate-800"
+                  }`}
+                  style={{
+                    backgroundColor: selectedRange === "today" ? "var(--accent)" : "transparent",
+                    boxShadow: selectedRange === "today" ? "0 6px 14px -6px var(--accent)" : "none",
+                  }}
                   onClick={() => {
                     setCustomOpen(false);
                     applyRange("today");
@@ -504,11 +465,15 @@ function DashboardPageInner() {
                 </button>
                 <button
                   type="button"
-                  className={
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
                     selectedRange === "this_week"
-                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
-                  }
+                      ? "text-white shadow-sm"
+                      : "text-slate-800"
+                  }`}
+                  style={{
+                    backgroundColor: selectedRange === "this_week" ? "var(--accent)" : "transparent",
+                    boxShadow: selectedRange === "this_week" ? "0 6px 14px -6px var(--accent)" : "none",
+                  }}
                   onClick={() => {
                     setCustomOpen(false);
                     applyRange("this_week");
@@ -518,11 +483,15 @@ function DashboardPageInner() {
                 </button>
                 <button
                   type="button"
-                  className={
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
                     selectedRange === "this_month"
-                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
-                  }
+                      ? "text-white shadow-sm"
+                      : "text-slate-800"
+                  }`}
+                  style={{
+                    backgroundColor: selectedRange === "this_month" ? "var(--accent)" : "transparent",
+                    boxShadow: selectedRange === "this_month" ? "0 6px 14px -6px var(--accent)" : "none",
+                  }}
                   onClick={() => {
                     setCustomOpen(false);
                     applyRange("this_month");
@@ -533,11 +502,15 @@ function DashboardPageInner() {
                 <button
                   type="button"
                   ref={rangeAnchorRef}
-                  className={
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
                     selectedRange === "custom"
-                      ? "rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white shadow-sm"
-                      : "rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-200"
-                  }
+                      ? "text-white shadow-sm"
+                      : "text-slate-800"
+                  }`}
+                  style={{
+                    backgroundColor: selectedRange === "custom" ? "var(--accent)" : "transparent",
+                    boxShadow: selectedRange === "custom" ? "0 6px 14px -6px var(--accent)" : "none",
+                  }}
                   onClick={() => {
                     replaceParams({ range: "custom" });
                     openCustomPicker();
@@ -646,13 +619,16 @@ function DashboardPageInner() {
       </section>
 
       {/* Finance summary + pending dues */}
-      <section className="rounded-2xl bg-white p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200 text-slate-900">
-        <div className="mb-4 text-base font-semibold tracking-wide text-slate-900">Finance Summary</div>
-        <div className="mb-4 flex flex-wrap items-center gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+      <section className="rounded-2xl bg-gradient-to-br from-slate-50 via-white to-slate-100 p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200/80 text-slate-900">
+        <div className="mb-4 text-base font-semibold tracking-wide text-slate-900">
+          Finance Summary
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <FinanceTile
+            title="Company Payments"
+            value={financeCompanyPayments}
+            loading={loadingSummary}
+            color="#f97316"
             onClick={() =>
               navigateTo("/payments", {
                 source: "COMPANY_PAYMENT",
@@ -660,13 +636,12 @@ function DashboardPageInner() {
                 limit: 50,
               })
             }
-          >
-            View company payments
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          />
+          <FinanceTile
+            title="Candidate Fees"
+            value={financeCandidateFees}
+            loading={loadingSummary}
+            color="#10b981"
             onClick={() =>
               navigateTo("/payments", {
                 source: "CANDIDATE_PAYMENT",
@@ -674,13 +649,12 @@ function DashboardPageInner() {
                 limit: 50,
               })
             }
-          >
-            View candidate payments
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          />
+          <FinanceTile
+            title="Placement Income"
+            value={financePlacementIncome}
+            loading={loadingSummary}
+            color="#6366f1"
             onClick={() =>
               navigateTo("/payments", {
                 source: "PLACEMENT_INCOME",
@@ -688,39 +662,31 @@ function DashboardPageInner() {
                 limit: 50,
               })
             }
-          >
-            View placement income
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          />
+          <FinanceTile
+            title="Total Income"
+            value={financeTotalIncome}
+            loading={loadingSummary}
+            color="#0f172a"
+            highlight
             onClick={() =>
               navigateTo("/payments", {
                 ...dateParams,
                 limit: 50,
               })
             }
-          >
-            View all ledger
-          </Button>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <FinanceTile title="Company Payments" value={financeCompanyPayments} loading={loadingSummary} />
-          <FinanceTile title="Candidate Fees" value={financeCandidateFees} loading={loadingSummary} />
-          <FinanceTile title="Placement Income" value={financePlacementIncome} loading={loadingSummary} />
-          <FinanceTile title="Total Income" value={financeTotalIncome} loading={loadingSummary} highlight />
+          />
         </div>
       </section>
 
-      {/* Pending dues */}
-      <section className="rounded-2xl bg-white p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200 text-slate-900">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+      {/* Pending dues KPIs (table removed per request) */}
+      <section className="rounded-2xl bg-white/90 p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-200/80 text-slate-900 backdrop-blur">
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1.1fr_1fr] lg:items-start">
+          <div className="space-y-1">
             <div className="text-base font-semibold text-slate-900">Pending dues</div>
-            <div className="text-sm text-slate-500">Track outstanding payments by company and candidates</div>
+            <div className="text-sm text-slate-500">Quick totals—table removed as requested</div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-3 shadow-sm lg:justify-end">
             <label className="text-xs font-semibold text-slate-600" htmlFor="dueBefore">
               Due before
             </label>
@@ -729,106 +695,49 @@ function DashboardPageInner() {
               type="date"
               value={dueBefore}
               onChange={(e) => setDueBefore(e.target.value)}
-              className="w-44 rounded-lg border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-[var(--accent)] focus:bg-white"
+              className="w-48 rounded-lg border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-[var(--accent)] focus:bg-white"
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                navigateTo("/payments/pending", {
-                  due_before: dueBefore,
-                })
-              }
-            >
-              View pending page
-            </Button>
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <FinanceTile title="Total Due" value={pendingDues?.total_due} loading={loadingPendingDues} highlight />
-          <FinanceTile title="Candidate Due" value={pendingDues?.candidate_due} loading={loadingPendingDues} />
-          <FinanceTile title="Company Due" value={pendingDues?.company_due} loading={loadingPendingDues} />
-        </div>
-
-        <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white ring-1 ring-slate-200/70">
-          <div className="grid grid-cols-[1.8fr_1.6fr_1.4fr_1fr_1fr_1.2fr] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
-            <div>Candidate</div>
-            <div>Contact</div>
-            <div>Source</div>
-            <div className="text-right">Amount</div>
-            <div className="text-right">Received</div>
-            <div className="text-right">Balance</div>
-          </div>
-          <div className="divide-y divide-slate-200 bg-white">
-            {(pendingDues?.items || []).map((item) => {
-              const candidateId = item?.candidate_id ? String(item.candidate_id) : "";
-              return (
-                <div
-                  key={`${item?.source || "item"}-${item?.id || item?.company_id || Math.random()}`}
-                  className="grid grid-cols-[1.8fr_1.6fr_1.4fr_1fr_1fr_1.2fr] items-center px-4 py-3 text-sm text-slate-900 hover:bg-slate-50"
-                >
-                  <div className="flex flex-col">
-                    {candidateId ? (
-                      <Link href={`/candidates/${candidateId}`} className="font-semibold text-[var(--accent)] hover:underline">
-                        {item?.candidate_name || "Unknown candidate"}
-                      </Link>
-                    ) : (
-                      <span className="font-semibold">{item?.candidate_name || "Unknown candidate"}</span>
-                    )}
-                  </div>
-                  <div className="text-sm text-slate-600">{item?.candidate_contact_number || "—"}</div>
-                  <div className="text-sm text-slate-600">{item?.source || "Payment"}</div>
-                  <div className="text-right font-semibold text-slate-900">{formatCurrency(item?.total_amount)}</div>
-                  <div className="text-right text-slate-700">{formatCurrency(item?.total_received)}</div>
-                  <div className="text-right font-semibold text-[var(--accent)]">{formatCurrency(item?.balance)}</div>
-                </div>
-              );
-            })}
-            {!pendingDues?.items?.length ? (
-              <div className="px-4 py-6 text-center text-sm text-slate-500">No pending dues for the selected date.</div>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      {/* Finance trend chart */}
-      <section className="rounded-2xl bg-slate-900/90 p-7 shadow-[var(--shadow-card)] ring-1 ring-slate-800 text-slate-50">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-base font-semibold text-slate-50">Finance trend</div>
-            <div className="text-sm text-slate-400">Monthly totals across company, candidate, and placement income</div>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <FinanceTile
+            title="Total Due"
+            value={pendingDues?.total_due}
+            loading={loadingPendingDues}
+            color="#f43f5e"
+            highlight
             onClick={() =>
-              navigateTo("/payments", {
-                ...dateParams,
-                limit: 50,
+              navigateTo("/payments/pending", {
+                due_before: dueBefore,
               })
             }
-          >
-            View finance ledger
-          </Button>
-        </div>
-
-        <div className="mt-4 h-80 w-full">
-          <ResponsiveContainer>
-            <BarChart data={financeChartData} barCategoryGap={24}>
-              <CartesianGrid strokeDasharray="4 4" stroke="#1f2937" />
-              <XAxis dataKey="period" stroke="#cbd5e1" tickLine={false} />
-              <YAxis stroke="#cbd5e1" tickLine={false} axisLine={false} tickFormatter={(v) => formatCompactCurrency(v)} />
-              <Tooltip content={<FinanceTooltip />} />
-              <Bar dataKey="company_payments" name="Company" stackId="a" fill="#60a5fa" />
-              <Bar dataKey="candidate_payments" name="Candidate" stackId="a" fill="#34d399" />
-              <Bar dataKey="placement_income" name="Placement" stackId="a" fill="#fbbf24" />
-            </BarChart>
-          </ResponsiveContainer>
+          />
+          <FinanceTile
+            title="Candidate Due"
+            value={pendingDues?.candidate_due}
+            loading={loadingPendingDues}
+            color="#10b981"
+            onClick={() =>
+              navigateTo("/payments/pending", {
+                due_before: dueBefore,
+              })
+            }
+          />
+          <FinanceTile
+            title="Company Due"
+            value={pendingDues?.company_due}
+            loading={loadingPendingDues}
+            color="#f97316"
+            onClick={() =>
+              navigateTo("/payments/pending", {
+                due_before: dueBefore,
+              })
+            }
+          />
         </div>
       </section>
+
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   updateCandidate,
   uploadCandidateFile,
   changeCandidateStatus,
+  listCandidateAppliedJobs,
 } from "@/services/candidates";
 import Button from "@/components/ui/Button";
 import DetailShell from "@/components/ui/DetailShell";
@@ -43,6 +44,9 @@ export default function CandidateDetailPage() {
   const [photoFile, setPhotoFile] = useState(null);
   const [uploadingDocuments, setUploadingDocuments] = useState(false);
   const [resumeModalOpen, setResumeModalOpen] = useState(false);
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [appliedJobs, setAppliedJobs] = useState([]);
+  const [loadingAppliedJobs, setLoadingAppliedJobs] = useState(false);
 
   const paymentsByCandidateId = useCandidatesStore(
     (state) => state.paymentsByCandidateId
@@ -185,6 +189,32 @@ export default function CandidateDetailPage() {
     };
   }, [id, pushToast]);
 
+  useEffect(() => {
+    if (tab !== "applied-jobs" || !id) return;
+    let active = true;
+    async function loadApplied() {
+      setLoadingAppliedJobs(true);
+      try {
+        const data = await listCandidateAppliedJobs(id);
+        if (!active) return;
+        setAppliedJobs(Array.isArray(data) ? data : []);
+      } catch (error) {
+        if (!active) return;
+        pushToast({
+          title: "Failed to load applied jobs",
+          description: (error && error.message) || "Could not load applied jobs.",
+        });
+        setAppliedJobs([]);
+      } finally {
+        if (active) setLoadingAppliedJobs(false);
+      }
+    }
+    loadApplied();
+    return () => {
+      active = false;
+    };
+  }, [tab, id, pushToast]);
+
   const payments = paymentsByCandidateId[id] || [];
   const status = candidate?.status || "REGISTERED";
   const isRegistered = status === "REGISTERED";
@@ -246,7 +276,6 @@ export default function CandidateDetailPage() {
         address: candidate.address || "",
         location_area_id: candidate.location_area_id || "",
         experience_level: candidate.experience_level || "",
-        applied_job_id: candidate.applied_job_id || "",
         status: candidate.status || "REGISTERED",
         employment_status: candidate.employment_status || "",
         gender: candidate.gender || "",
@@ -278,7 +307,7 @@ export default function CandidateDetailPage() {
 
       const payload = {
         full_name: values.full_name,
-        email: values.email || undefined,
+        email: values.email?.trim() ? values.email.trim() : undefined,
         mobile_number: values.mobile_number,
         alternate_mobile_number: values.alternate_mobile_number || undefined,
         address: values.address || undefined,
@@ -736,6 +765,7 @@ export default function CandidateDetailPage() {
           { value: "overview", label: "Overview" },
           { value: "edit", label: "Edit" },
           { value: "documents", label: "Documents" },
+          { value: "applied-jobs", label: "Applied jobs" },
           { value: "payments", label: "Payments" },
         ]}
         onBack={() => router.back()}
@@ -755,6 +785,7 @@ export default function CandidateDetailPage() {
           { value: "overview", label: "Overview" },
           { value: "edit", label: "Edit" },
           { value: "documents", label: "Documents" },
+          { value: "applied-jobs", label: "Applied jobs" },
           { value: "payments", label: "Payments" },
         ]}
         onBack={() => router.back()}
@@ -768,6 +799,15 @@ export default function CandidateDetailPage() {
     { key: "remarks", label: "Remarks" },
   ];
 
+  const appliedJobColumns = [
+    { key: "job_title", label: "Job" },
+    { key: "company_name", label: "Company" },
+    { key: "job_status", label: "Job status" },
+    { key: "interviews_count", label: "Interviews" },
+    { key: "latest_interview_status", label: "Latest status" },
+    { key: "last_interview_date", label: "Last interview" },
+  ];
+
   const paymentRows = payments.map((payment) => ({
     id: payment.id,
     amount: payment.amount,
@@ -775,6 +815,19 @@ export default function CandidateDetailPage() {
       ? dayjs(payment.payment_date).format("YYYY-MM-DD HH:mm")
       : "-",
     remarks: payment.remarks || "",
+  }));
+
+  const appliedJobRows = (Array.isArray(appliedJobs) ? appliedJobs : []).map((item) => ({
+    id: item.job_id || item.id,
+    job_title: item.job_title || "-",
+    company_name: item.company_name || "-",
+    job_status: item.job_status || "-",
+    interviews_count: item.interviews_count ?? 0,
+    latest_interview_status: item.latest_interview_status || "-",
+    last_interview_date: item.last_interview_date
+      ? dayjs(item.last_interview_date).format("YYYY-MM-DD HH:mm")
+      : "-",
+    link: item.job_id ? `/jobs/${item.job_id}` : null,
   }));
 
   return (
@@ -789,6 +842,7 @@ export default function CandidateDetailPage() {
           { value: "overview", label: "Overview" },
           { value: "edit", label: "Edit" },
           { value: "documents", label: "Documents" },
+          { value: "applied-jobs", label: "Applied jobs" },
           { value: "payments", label: "Payments" },
         ]}
         onBack={() => router.back()}
@@ -799,6 +853,9 @@ export default function CandidateDetailPage() {
             </Button>
             <Button type="button" onClick={openStatusModal}>
               Change status
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setTab("applied-jobs")}>
+              Applied jobs
             </Button>
             <Button type="button" variant="outline" onClick={() => setTab("payments")}>
               Payments
@@ -811,9 +868,15 @@ export default function CandidateDetailPage() {
         <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-16 w-16 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-muted)]">
+              <button
+                type="button"
+                onClick={() => photoSrc && setPhotoModalOpen(true)}
+                className="h-16 w-16 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
+                aria-label={photoSrc ? "View photo" : "No photo available"}
+                disabled={!photoSrc}
+              >
                 {photoSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={photoSrc}
                     alt="Candidate photo"
@@ -824,7 +887,7 @@ export default function CandidateDetailPage() {
                     No photo
                   </div>
                 )}
-              </div>
+              </button>
               <div className="flex flex-col">
                 <div className="text-sm font-semibold text-slate-900">
                   {candidate.full_name || candidate.name || "Candidate"}
@@ -904,10 +967,6 @@ export default function CandidateDetailPage() {
               <div className="mt-1 text-sm font-medium text-slate-900">{dobDisplay || "-"}</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-600">Age</div>
-              <div className="mt-1 text-sm font-medium text-slate-900">{ageDisplay || "-"}</div>
-            </div>
-            <div>
               <div className="text-xs font-semibold text-slate-600">Experience level</div>
               <div className="mt-1 text-sm font-medium text-slate-900">
                 {candidate.experience_level || "-"}
@@ -936,21 +995,6 @@ export default function CandidateDetailPage() {
             <div className="space-y-1">
               <div className="text-xs font-semibold text-slate-600">Degree</div>
               {renderChips(displayDegree)}
-            </div>
-            <div className="space-y-1">
-              <div className="text-xs font-semibold text-slate-600">Applied job</div>
-              <div className="mt-1 text-sm font-medium text-[var(--accent)]">
-                {candidate.applied_job_id ? (
-                  <a
-                    href={`/jobs/${candidate.applied_job_id}`}
-                    className="hover:underline"
-                  >
-                    View job #{candidate.applied_job_id}
-                  </a>
-                ) : (
-                  <span className="text-slate-500">-</span>
-                )}
-              </div>
             </div>
           </div>
 
@@ -1042,8 +1086,44 @@ export default function CandidateDetailPage() {
         </div>
       ) : null}
 
+      {tab === "applied-jobs" ? (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-800">Applied jobs</h2>
+            {loadingAppliedJobs ? (
+              <span className="text-[11px] text-slate-500">Loading…</span>
+            ) : null}
+          </div>
+
+          {loadingAppliedJobs ? (
+            <div className="mt-3 text-xs text-slate-500">Fetching applied jobs…</div>
+          ) : appliedJobRows.length === 0 ? (
+            <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-sm text-slate-600">
+              No applied jobs found for this candidate.
+            </div>
+          ) : (
+            <Table
+              columns={appliedJobColumns}
+              rows={appliedJobRows}
+              renderActions={(row) =>
+                row.link ? (
+                  <a
+                    href={row.link}
+                    className="text-[11px] text-[var(--accent)] underline"
+                  >
+                    View job
+                  </a>
+                ) : (
+                  <span className="text-[11px] text-slate-500">No job link</span>
+                )
+              }
+            />
+          )}
+        </div>
+      ) : null}
+
       {tab === "payments" ? (
-        (isRegistered || isJoc) ? (
+        isRegistered || isJoc ? (
           <div className="space-y-3 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold text-[var(--text)]">Payments</h2>
@@ -1227,7 +1307,6 @@ export default function CandidateDetailPage() {
           </div>
         )
       ) : null}
-
       </DetailShell>
 
       <Modal
@@ -1236,25 +1315,51 @@ export default function CandidateDetailPage() {
         title="Resume"
         size="lg"
       >
-        {resumeSrc ? (
-          <div className="h-[70vh]">
-            {isResumeImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={resumeSrc}
-                alt="Resume"
-                className="h-full w-full object-contain"
-              />
-            ) : (
-              <iframe
-                src={resumeSrc}
-                title="Resume preview"
-                className="h-full w-full rounded-md border border-[var(--border)]"
-              />
-            )}
-          </div>
+        <div className="flex flex-col gap-3">
+          {isResumeImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={resumeSrc}
+              alt="Resume"
+              className="max-h-[70vh] w-full rounded-md border border-[var(--border)] object-contain"
+            />
+          ) : resumeSrc ? (
+            <iframe
+              src={resumeSrc}
+              title="Resume preview"
+              className="h-[70vh] w-full rounded-md border border-[var(--border)]"
+            />
+          ) : (
+            <p className="text-sm text-slate-600">No resume available.</p>
+          )}
+          {resumeSrc ? (
+            <a
+              href={resumeSrc}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-[var(--accent)] underline"
+            >
+              Open resume in new tab
+            </a>
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={photoModalOpen}
+        onClose={() => setPhotoModalOpen(false)}
+        title="Photo"
+        size="md"
+      >
+        {photoSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoSrc}
+            alt="Candidate photo"
+            className="max-h-[70vh] w-full rounded-md border border-[var(--border)] object-contain"
+          />
         ) : (
-          <div className="text-sm text-slate-700">Resume not available.</div>
+          <p className="text-sm text-slate-600">No photo available.</p>
         )}
       </Modal>
 
@@ -1333,7 +1438,7 @@ export default function CandidateDetailPage() {
                   type="text"
                   value={jocPaymentRemarks}
                   onChange={(e) => setJocPaymentRemarks(e.target.value)}
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus-border-[var(--accent)]"
                   placeholder="Optional"
                 />
               </div>

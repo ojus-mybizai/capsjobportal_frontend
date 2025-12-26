@@ -44,7 +44,7 @@ export default function DetailShell({
 }) {
   if (loading) {
     return (
-      <div className={clsx("max-w-4xl space-y-4", className)}>
+      <div className={clsx("w-full max-w-6xl mx-auto space-y-4", className)}>
         <PageHeader
           title={loadingTitle}
           subtitle={" "}
@@ -64,7 +64,7 @@ export default function DetailShell({
 
   if (notFound) {
     return (
-      <div className={clsx("max-w-4xl space-y-4", className)}>
+      <div className={clsx("w-full max-w-6xl mx-auto space-y-4", className)}>
         <PageHeader
           title={title || "Not found"}
           subtitle={subtitle || "The record does not exist."}
@@ -82,7 +82,7 @@ export default function DetailShell({
   }
 
   return (
-    <div className={clsx("max-w-4xl space-y-4", className)}>
+    <div className={clsx("w-full max-w-6xl mx-auto space-y-4", className)}>
       <PageHeader
         title={title}
         subtitle={subtitle}

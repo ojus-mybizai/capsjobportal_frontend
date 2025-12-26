@@ -1,6 +1,11 @@
 import { api } from "./api";
 import { USE_MOCK_DATA, mockCandidates } from "./mockData";
-import { stripEmpty, ensurePagedResult, ensureObjectData } from "./formatters";
+import {
+  stripEmpty,
+  ensurePagedResult,
+  ensureObjectData,
+  ensureArrayData,
+} from "./formatters";
 
 export function listCandidates(params = {}) {
   if (USE_MOCK_DATA) {
@@ -166,4 +171,25 @@ export function deleteCandidatePayment(paymentId) {
   }
 
   return api.delete(`candidate-payments/${paymentId}`);
+}
+
+export function listCandidateAppliedJobs(candidateId) {
+  if (USE_MOCK_DATA) {
+    return Promise.resolve([]);
+  }
+
+  return api
+    .get(`candidates/${candidateId}/applied-jobs`)
+    .then((result) => ensureArrayData(result, "Failed to load applied jobs"));
+}
+
+export function listCandidateRelatedJobs(candidateId, params = {}) {
+  if (USE_MOCK_DATA) {
+    return Promise.resolve([]);
+  }
+
+  const resolved = { ...params };
+  return api
+    .get(`candidates/${candidateId}/related-jobs`, { params: resolved })
+    .then((payload) => ensureArrayData(payload, "Failed to load related jobs"));
 }

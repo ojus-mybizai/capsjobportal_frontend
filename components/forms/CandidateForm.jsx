@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,9 +11,11 @@ import { useMastersStore } from "@/stores/masters";
 import { getJob, listJobs } from "@/services/jobs";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
 
+const emailSchema = z.string().trim().email("Enter a valid email").or(z.literal("")).optional();
+
 const schema = z.object({
   full_name: z.string().min(1, "Full name is required"),
-  email: z.string().email("Enter a valid email").optional(),
+  email: emailSchema,
   mobile_number: z.string().min(1, "Mobile number is required"),
   alternate_mobile_number: z.string().optional(),
   address: z.string().optional(),
@@ -21,7 +23,6 @@ const schema = z.object({
   experience_level: z
     .enum(["FRESHER", "0_1_YEARS", "1_3_YEARS", "3_5_YEARS", "5_PLUS_YEARS"])
     .optional(),
-  applied_job_id: z.string().optional(),
   status: z.enum(["REGISTERED", "CAPS", "JOC", "FREE"], {
     required_error: "Status is required",
   }),
@@ -78,6 +79,12 @@ export default function CandidateForm({
   const [skillInput, setSkillInput] = useState("");
   const [educationInput, setEducationInput] = useState("");
   const [degreeInput, setDegreeInput] = useState("");
+
+  const formatOptionLabel = useCallback((value, options) => {
+    return (
+      options.find((opt) => String(opt.value) === String(value))?.label || value
+    );
+  }, []);
 
   const skills = watch("skills") || [];
   const education = watch("education") || [];
@@ -350,29 +357,6 @@ export default function CandidateForm({
             <option value="5_PLUS_YEARS">5+ years</option>
           </Select>
         </div>
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-700">
-            Applied job
-          </label>
-          <Controller
-            control={control}
-            name="applied_job_id"
-            render={({ field }) => (
-              <AsyncSearchSelect
-                value={field.value}
-                onChange={field.onChange}
-                disabled={disableAppliedJobField}
-                placeholder="None"
-                searchPlaceholder="Search jobs..."
-                loadOptions={loadJobOptions}
-                getOptionValue={(j) => j.id}
-                getOptionLabel={(j) => j.title || j.name || `Job #${j.id}`}
-                resolveSelectedLabel={resolveJobLabel}
-                allowClear={!disableAppliedJobField}
-              />
-            )}
-          />
-        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -423,7 +407,7 @@ export default function CandidateForm({
                   key={`${skill}-${index}`}
                   className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
                 >
-                  <span>{skill}</span>
+                  <span>{formatOptionLabel(skill, skillOptions)}</span>
                   <button
                     type="button"
                     onClick={() => removeSkill(index)}
@@ -471,7 +455,7 @@ export default function CandidateForm({
                   key={`${item}-${index}`}
                   className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
                 >
-                  <span>{item}</span>
+                  <span>{formatOptionLabel(item, educationOptions)}</span>
                   <button
                     type="button"
                     onClick={() => removeEducation(index)}
@@ -520,7 +504,7 @@ export default function CandidateForm({
                 key={`${item}-${index}`}
                 className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-0.5 text-[11px] text-slate-700"
               >
-                <span>{item}</span>
+                <span>{formatOptionLabel(item, degreeOptions)}</span>
                 <button
                   type="button"
                   onClick={() => removeDegree(index)}

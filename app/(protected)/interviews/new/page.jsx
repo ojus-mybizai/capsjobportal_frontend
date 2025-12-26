@@ -1,23 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUIStore } from "@/stores/ui";
 import { useInterviewsStore } from "@/stores/interviews";
+import { getJob } from "@/services/jobs";
 import InterviewForm from "@/components/interviews/InterviewForm";
 
 export default function NewInterviewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
 
   const createInterview = useInterviewsStore((state) => state.create);
 
   const [submitting, setSubmitting] = useState(false);
+  const [prefill, setPrefill] = useState({
+    companyId: "",
+    jobId: "",
+    candidateId: "",
+  });
 
   useEffect(() => {
     setPageMetadata("Schedule interview", "Create a new interview");
   }, [setPageMetadata]);
+
+  useEffect(() => {
+    const candidateIdParam = searchParams.get("candidate_id") || "";
+    const jobIdParam = searchParams.get("job_id") || "";
+
+    async function hydrateFromParams() {
+      let companyId = "";
+      if (jobIdParam) {
+        try {
+          const job = await getJob(jobIdParam);
+          companyId =
+            job?.company_id != null
+              ? String(job.company_id)
+              : job?.companyId != null
+              ? String(job.companyId)
+              : "";
+        } catch (e) {
+          console.warn("Failed to prefill company from job", e);
+        }
+      }
+      setPrefill({
+        companyId,
+        jobId: jobIdParam || "",
+        candidateId: candidateIdParam || "",
+      });
+    }
+
+    hydrateFromParams();
+  }, [searchParams]);
 
   useEffect(() => {
     const main = document.querySelector("main");
@@ -101,6 +137,7 @@ export default function NewInterviewPage() {
   return (
     <div className="max-w-3xl">
       <InterviewForm
+        defaultValues={prefill}
         onSubmit={handleSubmit}
         submitting={submitting}
         allowJoinedStatus={false}

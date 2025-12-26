@@ -31,6 +31,18 @@ function ProtectedLayoutInner({ children }) {
   const loading = useAuthStore((state) => state.loading);
   const hydrated = useAuthStore((state) => state.hydrated);
 
+  function getTheme() {
+    const route = pathname || "";
+    if (route.startsWith("/companies")) return { accent: "#f97316", accentSoft: "#f9731626" };
+    if (route.startsWith("/jobs")) return { accent: "#22c55e", accentSoft: "#22c55e26" };
+    if (route.startsWith("/candidates")) return { accent: "#0ea5e9", accentSoft: "#0ea5e926" };
+    if (route.startsWith("/interviews")) return { accent: "#6366f1", accentSoft: "#6366f126" };
+    if (route.startsWith("/payments")) return { accent: "#0f172a", accentSoft: "#0f172a26" };
+    return { accent: "#2563eb", accentSoft: "#2563eb26" };
+  }
+
+  const theme = getTheme();
+
   useEffect(() => {
     if (!hydrated || loading) return;
     if (!isAuthenticated) {
@@ -56,7 +68,10 @@ function ProtectedLayoutInner({ children }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900">
+    <div
+      className="flex min-h-screen bg-slate-50 text-slate-900"
+      style={{ "--accent": theme.accent, "--accent-soft": theme.accentSoft }}
+    >
       <Sidebar />
       <div className="flex min-h-screen flex-1 flex-col bg-slate-50">
         <Header />

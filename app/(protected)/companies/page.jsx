@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUIStore } from "@/stores/ui";
@@ -75,6 +75,35 @@ function CompaniesPageInner() {
   const [contactNumber, setContactNumber] = useState(contactNumberParam);
   const [createdBy, setCreatedBy] = useState(createdByParam);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const activeFilters = useMemo(() => {
+    const items = [];
+    if (companyStatusParam) items.push({ key: "company_status", label: "Status", value: companyStatusParam });
+    if (verificationStatusParam) items.push({ key: "verification_status", label: "Verified", value: verificationStatusParam });
+    if (categoryIdParam) items.push({ key: "category_id", label: "Category", value: categoryIdParam });
+    if (locationAreaIdParam) items.push({ key: "location_area_id", label: "Location", value: locationAreaIdParam });
+    if (emailParam) items.push({ key: "email", label: "Email", value: emailParam });
+    if (contactNumberParam) items.push({ key: "contact_number", label: "Contact", value: contactNumberParam });
+    if (createdByParam) items.push({ key: "created_by", label: "Created by", value: createdByParam });
+    if (createdFromParam) items.push({ key: "created_from", label: "Created from", value: createdFromParam });
+    if (createdToParam) items.push({ key: "created_to", label: "Created to", value: createdToParam });
+    if (isActiveParam) items.push({ key: "is_active", label: "Active", value: isActiveParam });
+    if (sortByParam) items.push({ key: "sort_by", label: "Sort by", value: sortByParam });
+    if (orderParam) items.push({ key: "order", label: "Order", value: orderParam });
+    return items;
+  }, [
+    companyStatusParam,
+    verificationStatusParam,
+    categoryIdParam,
+    locationAreaIdParam,
+    emailParam,
+    contactNumberParam,
+    createdByParam,
+    createdFromParam,
+    createdToParam,
+    isActiveParam,
+    sortByParam,
+    orderParam,
+  ]);
 
   const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
@@ -196,6 +225,21 @@ function CompaniesPageInner() {
     const qs = params.toString();
     if (qs === searchParamsString) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  function clearSingleFilter(key) {
+    if (key === "email") setEmail("");
+    if (key === "contact_number") setContactNumber("");
+    if (key === "created_by") setCreatedBy("");
+    if (key === "created_from") setParam("created_from", "");
+    if (key === "created_to") setParam("created_to", "");
+    if (key === "verification_status") setParam("verification_status", "");
+    if (key === "company_status") setParam("company_status", "");
+    if (key === "category_id") setParam("category_id", "");
+    if (key === "location_area_id") setParam("location_area_id", "");
+    if (key === "is_active") setParam("is_active", "");
+    if (key === "sort_by") setParam("sort_by", "");
+    if (key === "order") setParam("order", "");
   }
 
   async function handleDeleteCompany(company) {
@@ -346,272 +390,292 @@ function CompaniesPageInner() {
 
   return (
     <div className="space-y-6">
-      
-        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
-          <div className="min-w-[260px]">
-            <div className="mb-1 text-[13px] font-medium text-slate-600">Search</div>
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search companies…"
-              className={controlClass}
-            />
+      <div className="relative overflow-hidden rounded-xl bg-[var(--bg)] p-5 ring-1 ring-[var(--border)] shadow-sm transition-all duration-300 hover:-translate-y-[1px] hover:shadow-md">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[var(--bg-muted)]/60 via-transparent to-[var(--bg-muted)]/60 opacity-0 transition-opacity duration-500 hover:opacity-100" />
+        <div className="flex flex-col gap-4 relative">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Company filters</div>
+              <div className="text-base font-semibold text-slate-800">Find the right partners</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvanced((v) => !v)}
+              >
+                {showAdvanced ? "Hide advanced" : "Advanced"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  setEmail("");
+                  setContactNumber("");
+                  setCreatedBy("");
+                  clearFilters();
+                }}
+              >
+                Clear all
+              </Button>
+              <Link href="/companies/new">
+                <Button size="sm">Add company</Button>
+              </Link>
+            </div>
           </div>
 
-          <div className="min-w-[200px]">
-            <div className="mb-1 text-[13px] font-medium text-slate-600">Category</div>
-            <Select
-              value={categoryIdParam}
-              onChange={(e) => setParam("category_id", e.target.value)}
-              className={controlClass}
-            >
-              <option value="">All</option>
-              {getOptions("company_category").map((opt) => (
-                <option key={String(opt.value)} value={String(opt.value)}>
-                  {opt.label}
-                </option>
+          {activeFilters.length ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-muted)]/70 p-2">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Active
+              </span>
+              {activeFilters.map((f) => (
+                <button
+                  key={`${f.key}-${f.value}`}
+                  type="button"
+                  onClick={() => clearSingleFilter(f.key)}
+                  className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-[var(--border)] hover:ring-[var(--accent)] transition"
+                  title="Remove filter"
+                >
+                  <span className="text-slate-500">{f.label}:</span>
+                  <span>{f.value}</span>
+                  <span className="text-slate-400">×</span>
+                </button>
               ))}
-            </Select>
-          </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-muted)]/40 px-3 py-2 text-xs text-slate-500">
+              No active filters. Refine the list with quick picks below.
+            </div>
+          )}
 
-          <div className="min-w-[200px]">
-            <div className="mb-1 text-[13px] font-medium text-slate-600">Location</div>
-            <Select
-              value={locationAreaIdParam}
-              onChange={(e) => setParam("location_area_id", e.target.value)}
-              className={controlClass}
-            >
-              <option value="">All</option>
-              {getOptions("location").map((opt) => (
-                <option key={String(opt.value)} value={String(opt.value)}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="min-w-[180px]">
-            <div className="mb-1 text-[13px] font-medium text-slate-600">Status</div>
-            <Select
-              value={companyStatusParam}
-              onChange={(e) => setParam("company_status", e.target.value)}
-              className={controlClass}
-            >
-              <option value="">All</option>
-              <option value="PAID">PAID</option>
-              <option value="FREE">FREE</option>
-            </Select>
-          </div>
-
-          <div className="min-w-[180px]">
-            <div className="mb-1 text-[13px] font-medium text-slate-600">Verified</div>
-            <Select
-              value={verificationStatusParam}
-              onChange={(e) => setParam("verification_status", e.target.value)}
-              className={controlClass}
-            >
-              <option value="">All</option>
-              <option value="true">Verified</option>
-              <option value="false">Not verified</option>
-            </Select>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAdvanced((v) => !v)}
-          >
-            {showAdvanced ? "Less filters" : "More filters"}
-          </Button>
-        </div>
-
-        {showAdvanced ? (
-          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
-            <div className="min-w-[240px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Email</div>
+          <div className="grid gap-3 md:grid-cols-12 md:items-end">
+            <div className="md:col-span-5 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Search</div>
               <Input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email contains…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search companies…"
                 className={controlClass}
               />
             </div>
 
-            <div className="min-w-[220px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Contact number</div>
-              <Input
-                value={contactNumber}
-                onChange={(e) => setContactNumber(e.target.value)}
-                placeholder="number contains…"
-                className={controlClass}
-              />
-            </div>
-
-            <div className="min-w-[260px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Created by</div>
-              <Input
-                value={createdBy}
-                onChange={(e) => setCreatedBy(e.target.value)}
-                placeholder="user UUID"
-                className={controlClass}
-              />
-            </div>
-
-            <div className="min-w-[170px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Created from</div>
-              <Input
-                type="date"
-                value={createdFromParam}
-                onChange={(e) => setParam("created_from", e.target.value)}
-                className={controlClass}
-              />
-            </div>
-
-            <div className="min-w-[170px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Created to</div>
-              <Input
-                type="date"
-                value={createdToParam}
-                onChange={(e) => setParam("created_to", e.target.value)}
-                className={controlClass}
-              />
-            </div>
-
-            <div className="min-w-[160px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Active</div>
+            <div className="md:col-span-3 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Category</div>
               <Select
-                value={isActiveParam}
-                onChange={(e) => setParam("is_active", e.target.value)}
+                value={categoryIdParam}
+                onChange={(e) => setParam("category_id", e.target.value)}
                 className={controlClass}
               >
                 <option value="">All</option>
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
+                {getOptions("company_category").map((opt) => (
+                  <option key={String(opt.value)} value={String(opt.value)}>
+                    {opt.label}
+                  </option>
+                ))}
               </Select>
             </div>
 
-            <div className="min-w-[200px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Sort by</div>
+            <div className="md:col-span-2 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Location</div>
               <Select
-                value={sortByParam}
-                onChange={(e) => setParam("sort_by", e.target.value)}
+                value={locationAreaIdParam}
+                onChange={(e) => setParam("location_area_id", e.target.value)}
                 className={controlClass}
               >
-                <option value="">created_at</option>
-                <option value="updated_at">updated_at</option>
-                <option value="name">name</option>
-                <option value="company_status">company_status</option>
-                <option value="verification_status">verification_status</option>
+                <option value="">All</option>
+                {getOptions("location").map((opt) => (
+                  <option key={String(opt.value)} value={String(opt.value)}>
+                    {opt.label}
+                  </option>
+                ))}
               </Select>
             </div>
 
-            <div className="min-w-[140px]">
-              <div className="mb-1 text-[13px] font-medium text-slate-600">Order</div>
+            <div className="md:col-span-1.5 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Status</div>
               <Select
-                value={orderParam}
-                onChange={(e) => setParam("order", e.target.value)}
+                value={companyStatusParam}
+                onChange={(e) => setParam("company_status", e.target.value)}
                 className={controlClass}
               >
-                <option value="">desc</option>
-                <option value="asc">asc</option>
-                <option value="desc">desc</option>
+                <option value="">All</option>
+                <option value="PAID">PAID</option>
+                <option value="FREE">FREE</option>
               </Select>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setQuery("");
-                setEmail("");
-                setContactNumber("");
-                setCreatedBy("");
-                clearFilters();
-              }}
-            >
-              Clear
-            </Button>
+            <div className="md:col-span-1.5 space-y-1">
+              <div className="text-[11px] font-medium text-slate-600">Verified</div>
+              <Select
+                value={verificationStatusParam}
+                onChange={(e) => setParam("verification_status", e.target.value)}
+                className={controlClass}
+              >
+                <option value="">All</option>
+                <option value="true">Verified</option>
+                <option value="false">Not verified</option>
+              </Select>
+            </div>
           </div>
-        ) : (
-          <div className="flex items-center gap-2">
+
+          {showAdvanced ? (
+            <div className="grid gap-3 md:grid-cols-12 md:items-end pt-2 border-t border-dashed border-[var(--border)]">
+              <div className="md:col-span-3 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Email</div>
+                <Input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email contains…"
+                  className={controlClass}
+                />
+              </div>
+
+              <div className="md:col-span-3 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Contact number</div>
+                <Input
+                  value={contactNumber}
+                  onChange={(e) => setContactNumber(e.target.value)}
+                  placeholder="number contains…"
+                  className={controlClass}
+                />
+              </div>
+
+              <div className="md:col-span-3 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Created by</div>
+                <Input
+                  value={createdBy}
+                  onChange={(e) => setCreatedBy(e.target.value)}
+                  placeholder="user UUID"
+                  className={controlClass}
+                />
+              </div>
+
+              <div className="md:col-span-3 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Date created</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={createdFromParam}
+                    onChange={(e) => setParam("created_from", e.target.value)}
+                    className={controlClass}
+                  />
+                  <Input
+                    type="date"
+                    value={createdToParam}
+                    onChange={(e) => setParam("created_to", e.target.value)}
+                    className={controlClass}
+                  />
+                </div>
+              </div>
+
+              <div className="md:col-span-2 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Active</div>
+                <Select
+                  value={isActiveParam}
+                  onChange={(e) => setParam("is_active", e.target.value)}
+                  className={controlClass}
+                >
+                  <option value="">All</option>
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </Select>
+              </div>
+
+              <div className="md:col-span-2 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Sort by</div>
+                <Select
+                  value={sortByParam}
+                  onChange={(e) => setParam("sort_by", e.target.value)}
+                  className={controlClass}
+                >
+                  <option value="">created_at</option>
+                  <option value="updated_at">updated_at</option>
+                  <option value="name">name</option>
+                  <option value="company_status">company_status</option>
+                  <option value="verification_status">verification_status</option>
+                </Select>
+              </div>
+
+              <div className="md:col-span-2 space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Order</div>
+                <Select
+                  value={orderParam}
+                  onChange={(e) => setParam("order", e.target.value)}
+                  className={controlClass}
+                >
+                  <option value="">desc</option>
+                  <option value="asc">asc</option>
+                  <option value="desc">desc</option>
+                </Select>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="text-xs text-slate-500">{loading ? "Loading…" : null}</div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <span>Showing page {page}</span>
+              <span className="h-1 w-1 rounded-full bg-slate-300" />
+              <span>{activeFilters.length} active filters</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <PaginatedTable
+        columns={columns}
+        rows={rows}
+        page={page}
+        limit={PAGE_SIZE}
+        total={total}
+        onPageChange={(nextPage) => {
+          const params = new URLSearchParams(searchParamsString);
+          params.set("page", String(nextPage));
+          const qs = params.toString();
+          if (qs === searchParamsString) return;
+          router.replace(qs ? `${pathname}?${qs}` : pathname);
+        }}
+        renderActions={(row) => (
+          <div className="flex items-center justify-end gap-2">
+            <ShareCompanyMenu
+              company={row}
+              onCopied={() =>
+                pushToast({
+                  title: "Copied",
+                  description: "Company details copied to clipboard",
+                })
+              }
+            />
+            <Link
+              href={`/jobs?company_id=${encodeURIComponent(
+                row && row.id != null ? String(row.id) : ""
+              )}`}
+              className="text-[13px] text-[var(--muted-text)] hover:underline"
+            >
+              Jobs
+            </Link>
+            <Link
+              href={`/companies/${row.id}`}
+              className="text-[13px] text-[var(--accent)] hover:underline"
+            >
+              View / Edit
+            </Link>
             <Button
               type="button"
-              variant="outline"
+              variant="danger"
               size="sm"
-              onClick={() => {
-                setQuery("");
-                setEmail("");
-                setContactNumber("");
-                setCreatedBy("");
-                clearFilters();
-              }}
+              onClick={() => handleDeleteCompany(row)}
             >
-              Clear
+              Delete
             </Button>
           </div>
         )}
-
-        <div className="flex items-center justify-between gap-3 md:justify-end">
-          <div className="text-[13px] text-slate-500">{loading ? "Loading…" : null}</div>
-          <Link href="/companies/new">
-            <Button size="sm">Add company</Button>
-          </Link>
-        </div>
-      
-
-      
-        <PaginatedTable
-          columns={columns}
-          rows={rows}
-          page={page}
-          limit={PAGE_SIZE}
-          total={total}
-          onPageChange={(nextPage) => {
-            const params = new URLSearchParams(searchParamsString);
-            params.set("page", String(nextPage));
-            const qs = params.toString();
-            if (qs === searchParamsString) return;
-            router.replace(qs ? `${pathname}?${qs}` : pathname);
-          }}
-          renderActions={(row) => (
-            <div className="flex items-center justify-end gap-2">
-              <ShareCompanyMenu
-                company={row}
-                onCopied={() =>
-                  pushToast({
-                    title: "Copied",
-                    description: "Company details copied to clipboard",
-                  })
-                }
-              />
-              <Link
-                href={`/jobs?company_id=${encodeURIComponent(
-                  row && row.id != null ? String(row.id) : ""
-                )}`}
-                className="text-[13px] text-[var(--muted-text)] hover:underline"
-              >
-                Jobs
-              </Link>
-              <Link
-                href={`/companies/${row.id}`}
-                className="text-[13px] text-[var(--accent)] hover:underline"
-              >
-                View / Edit
-              </Link>
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                onClick={() => handleDeleteCompany(row)}
-              >
-                Delete
-              </Button>
-            </div>
-          )}
-        />
-      </div>
+      />
+    </div>
   );
 }
 
