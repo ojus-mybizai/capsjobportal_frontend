@@ -26,8 +26,9 @@ import Modal from "@/components/ui/Modal";
 
 const SOURCE_OPTIONS = [
   { value: "COMPANY_PAYMENT", label: "Company payment" },
-  { value: "CANDIDATE_PAYMENT", label: "Candidate payment" },
   { value: "PLACEMENT_INCOME", label: "Placement income" },
+  { value: "JOC_FEE", label: "JOC fee" },
+  { value: "REGISTRATION_FEE", label: "Registration fee" },
 ];
 
 const LIMIT_OPTIONS = [20, 50, 100];
@@ -62,11 +63,12 @@ function formatCurrency(value) {
 function buildDisplayTitle(row) {
   const source = row?.source;
   if (source === "COMPANY_PAYMENT") return row?.company_name || "-";
-  if (source === "CANDIDATE_PAYMENT") return row?.candidate_name || "-";
   if (source === "PLACEMENT_INCOME") {
     const parts = [row?.company_name, row?.job_title, row?.candidate_name].filter(Boolean);
     return parts.length ? parts.join(" - ") : "-";
   }
+  if (source === "JOC_FEE") return row?.candidate_name || "-";
+  if (source === "REGISTRATION_FEE") return row?.candidate_name || "-";
   return "-";
 }
 
