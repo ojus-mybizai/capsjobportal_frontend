@@ -13,9 +13,8 @@ function MultiPick({
   onChange,
   disabled,
   placeholder,
+  className = "",
 }) {
-  const [query, setQuery] = useState("");
-
   const byId = useMemo(() => {
     const m = new Map();
     (Array.isArray(items) ? items : []).forEach((it) => {
@@ -39,12 +38,7 @@ function MultiPick({
       .filter(Boolean);
   }, [value, byId]);
 
-  const filteredItems = useMemo(() => {
-    const q = String(query || "").trim().toLowerCase();
-    const all = Array.isArray(items) ? items : [];
-    if (!q) return all;
-    return all.filter((it) => String(it?.name || it?.label || "").toLowerCase().includes(q));
-  }, [items, query]);
+  const availableItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
 
   function toggle(id) {
     const key = String(id);
@@ -57,11 +51,11 @@ function MultiPick({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/20 p-4">
+    <div className={`rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur ${className}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold text-slate-200">{title}</div>
-          <div className="mt-0.5 text-[11px] text-slate-400">
+          <div className="text-xs font-semibold text-slate-700">{title}</div>
+          <div className="mt-0.5 text-[11px] text-slate-500">
             {selected.length ? `${selected.length} selected` : placeholder || "Optional"}
           </div>
         </div>
@@ -69,7 +63,7 @@ function MultiPick({
           type="button"
           onClick={() => onChange([])}
           disabled={disabled || selected.length === 0}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-50"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
         >
           Clear
         </button>
@@ -83,29 +77,19 @@ function MultiPick({
               type="button"
               onClick={() => toggle(s.id)}
               disabled={disabled}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/10 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               title="Tap to remove"
             >
               <span className="max-w-[220px] truncate">{s.label}</span>
-              <span className="text-slate-400">×</span>
+              <span className="text-slate-500">×</span>
             </button>
           ))}
         </div>
       ) : null}
 
-      <div className="mt-3">
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search..."
-          disabled={disabled}
-          className="border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
-        />
-      </div>
-
-      <div className="mt-3 max-h-44 overflow-auto rounded-xl border border-white/10 bg-slate-950/30">
-        <div className="divide-y divide-white/5">
-          {filteredItems.map((it) => {
+      <div className="mt-3 max-h-44 overflow-auto rounded-xl border border-slate-200 bg-white">
+        <div className="divide-y divide-slate-100">
+          {availableItems.map((it) => {
             const id = it?.id != null ? String(it.id) : "";
             if (!id) return null;
             const label = it?.name || it?.label || id;
@@ -113,21 +97,15 @@ function MultiPick({
             return (
               <label
                 key={id}
-                className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm text-slate-100"
+                className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm text-slate-800 transition hover:bg-slate-50"
               >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(id)}
-                  disabled={disabled}
-                  className="h-4 w-4 accent-[var(--accent)]"
-                />
-                <span className="flex-1 truncate">{label}</span>
+                <input type="checkbox" checked={checked} onChange={() => toggle(id)} disabled={disabled} />
+                <span className="truncate">{label}</span>
               </label>
             );
           })}
-          {!filteredItems.length ? (
-            <div className="px-3 py-3 text-xs text-slate-400">No matches</div>
+          {!availableItems.length ? (
+            <div className="px-3 py-3 text-xs text-slate-400">No options available</div>
           ) : null}
         </div>
       </div>
@@ -315,54 +293,54 @@ export default function RegisterCandidatePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-emerald-50 text-slate-900">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-emerald-500/18 blur-3xl" />
-        <div className="absolute -bottom-40 right-[-120px] h-[520px] w-[520px] rounded-full bg-blue-600/15 blur-3xl" />
+        <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-emerald-200/60 blur-3xl" />
+        <div className="absolute -bottom-40 right-[-120px] h-[520px] w-[520px] rounded-full bg-sky-200/60 blur-3xl" />
       </div>
 
       <div className="relative mx-auto max-w-4xl px-4 py-10">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-sm font-semibold text-slate-200 hover:text-white">
+          <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
             Back
           </Link>
-          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
+          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
             No login required
           </div>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
-          <div className="border-b border-white/10 bg-slate-950/30 p-6">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Candidate</div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Register as a candidate</h1>
-            <p className="mt-2 text-sm text-slate-200">
+        <div className="mt-6 overflow-hidden rounded-3xl border border-slate-100 bg-white/90 shadow-xl backdrop-blur">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-white via-slate-50 to-emerald-50 p-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Candidate</div>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Register as a candidate</h1>
+            <p className="mt-2 text-sm text-slate-600">
               Submit your profile so we can match you with suitable job openings. Status will be saved as
-              <span className="font-semibold text-slate-100"> REGISTERED</span>.
+              <span className="font-semibold text-slate-800"> REGISTERED</span>.
             </p>
           </div>
 
           <div className="p-6">
             {success ? (
               <div className="space-y-3">
-                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4">
-                  <div className="text-sm font-semibold text-emerald-200">Registration submitted</div>
-                  <div className="mt-1 text-sm text-slate-200">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="text-sm font-semibold text-emerald-700">Registration submitted</div>
+                  <div className="mt-1 text-sm text-emerald-800">
                     Thank you! Our team will contact you soon.
                   </div>
                   {success.candidateId ? (
-                    <div className="mt-2 text-xs text-slate-300">Candidate ID: {success.candidateId}</div>
+                    <div className="mt-2 text-xs text-emerald-700">Candidate ID: {success.candidateId}</div>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Link
                     href="/"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                   >
                     Go to Home
                   </Link>
                   <button
                     type="button"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                     onClick={() => {
                       setSuccess(null);
                       setErrorMsg("");
@@ -392,59 +370,59 @@ export default function RegisterCandidatePage() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
                 {mastersError ? (
-                  <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                     {mastersError}
                   </div>
                 ) : null}
                 {errorMsg ? (
-                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                     {errorMsg}
                   </div>
                 ) : null}
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Full name *</label>
+                    <label className="text-xs font-semibold text-slate-700">Full name *</label>
                     <Input
                       value={form.full_name}
                       onChange={(e) => updateField("full_name", e.target.value)}
                       placeholder="e.g. Sanjay Patil"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Mobile number *</label>
+                    <label className="text-xs font-semibold text-slate-700">Mobile number *</label>
                     <Input
                       value={form.mobile_number}
                       onChange={(e) => updateField("mobile_number", e.target.value)}
                       placeholder="e.g. 9876543210"
                       inputMode="numeric"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Email</label>
+                    <label className="text-xs font-semibold text-slate-700">Email</label>
                     <Input
                       value={form.email}
                       onChange={(e) => updateField("email", e.target.value)}
                       placeholder="e.g. sanjay@gmail.com"
                       type="email"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Location *</label>
+                    <label className="text-xs font-semibold text-slate-700">Location *</label>
                     <select
                       value={form.location_area_id}
                       onChange={(e) => updateField("location_area_id", e.target.value)}
                       disabled={submitting || loadingMasters}
-                      className="mt-1 w-full rounded-md border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-white outline-none transition focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
+                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
                     >
                       <option value="">{loadingMasters ? "Loading..." : "Select location"}</option>
                       {locations.map((it) => (
@@ -456,12 +434,12 @@ export default function RegisterCandidatePage() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Experience level</label>
+                    <label className="text-xs font-semibold text-slate-700">Experience level</label>
                     <select
                       value={form.experience_level}
                       onChange={(e) => updateField("experience_level", e.target.value)}
                       disabled={submitting}
-                      className="mt-1 w-full rounded-md border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-white outline-none transition focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
+                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
                     >
                       {EXPERIENCE_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -472,7 +450,7 @@ export default function RegisterCandidatePage() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Expected salary</label>
+                    <label className="text-xs font-semibold text-slate-700">Expected salary</label>
                     <Input
                       value={form.expected_salary}
                       onChange={(e) => updateField("expected_salary", e.target.value)}
@@ -480,18 +458,18 @@ export default function RegisterCandidatePage() {
                       type="number"
                       min="0"
                       step="1"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Gender</label>
+                    <label className="text-xs font-semibold text-slate-700">Gender</label>
                     <select
                       value={form.gender}
                       onChange={(e) => updateField("gender", e.target.value)}
                       disabled={submitting}
-                      className="mt-1 w-full rounded-md border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-white outline-none transition focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
+                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
                     >
                       {GENDER_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -502,23 +480,23 @@ export default function RegisterCandidatePage() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Date of birth</label>
+                    <label className="text-xs font-semibold text-slate-700">Date of birth</label>
                     <Input
                       value={form.dob}
                       onChange={(e) => updateField("dob", e.target.value)}
                       type="date"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs font-semibold text-slate-200">Qualification</label>
+                    <label className="text-xs font-semibold text-slate-700">Qualification</label>
                     <Input
                       value={form.qualification}
                       onChange={(e) => updateField("qualification", e.target.value)}
                       placeholder="e.g. Graduate"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
@@ -532,6 +510,7 @@ export default function RegisterCandidatePage() {
                     onChange={(v) => updateField("education", v)}
                     disabled={submitting || loadingMasters}
                     placeholder="Optional"
+                    className="border-slate-200 bg-white text-slate-900"
                   />
                   <MultiPick
                     title="Degree"
@@ -540,65 +519,66 @@ export default function RegisterCandidatePage() {
                     onChange={(v) => updateField("degree", v)}
                     disabled={submitting || loadingMasters}
                     placeholder="Optional"
+                    className="border-slate-200 bg-white text-slate-900"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-200">Address</label>
+                  <label className="text-xs font-semibold text-slate-700">Address</label>
                   <Input
                     value={form.address}
                     onChange={(e) => updateField("address", e.target.value)}
                     placeholder="Optional"
-                    className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                    className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                     disabled={submitting}
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-200">Notes</label>
+                  <label className="text-xs font-semibold text-slate-700">Notes</label>
                   <textarea
                     value={form.notes}
                     onChange={(e) => updateField("notes", e.target.value)}
                     placeholder="Optional (e.g. looking for back office role)"
                     disabled={submitting}
-                    className="mt-1 w-full rounded-md border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-white outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
+                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
                     rows={3}
                   />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Resume (optional)</label>
+                    <label className="text-xs font-semibold text-slate-700">Resume (optional)</label>
                     <input
                       type="file"
                       accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       onChange={(e) => setResume(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
                       disabled={submitting}
-                      className="mt-2 block w-full text-xs text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-white/15"
+                      className="mt-2 block w-full text-xs text-slate-700 file:mr-4 file:rounded-lg file:border file:border-slate-200 file:bg-white file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-800 hover:file:bg-slate-50"
                     />
-                    <div className="mt-1 text-[11px] text-slate-400">PDF/DOC/DOCX, max 5 MB</div>
+                    <div className="mt-1 text-[11px] text-slate-500">PDF/DOC/DOCX, max 5 MB</div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Photo (optional)</label>
+                    <label className="text-xs font-semibold text-slate-700">Photo (optional)</label>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={(e) => setPhoto(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
                       disabled={submitting}
-                      className="mt-2 block w-full text-xs text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-white/15"
+                      className="mt-2 block w-full text-xs text-slate-700 file:mr-4 file:rounded-lg file:border file:border-slate-200 file:bg-white file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-800 hover:file:bg-slate-50"
                     />
-                    <div className="mt-1 text-[11px] text-slate-400">JPG/PNG/WebP, max 2 MB</div>
+                    <div className="mt-1 text-[11px] text-slate-500">JPG/PNG/WebP, max 2 MB</div>
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-xs text-slate-300">
-                    Submit mode: <span className="font-semibold text-slate-100">{hasFiles ? "Multipart" : "JSON"}</span>
+                  <div className="text-xs text-slate-500">
+                    Submit mode: <span className="font-semibold text-slate-800">{hasFiles ? "Multipart" : "JSON"}</span>
                   </div>
                   <div className="flex gap-2">
                     <Link
                       href="/"
-                      className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                     >
                       Cancel
                     </Link>

@@ -108,27 +108,27 @@ export default function RegisterCompanyPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-sky-50 text-slate-900">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-blue-600/20 blur-3xl" />
-        <div className="absolute -bottom-40 right-[-120px] h-[520px] w-[520px] rounded-full bg-emerald-500/15 blur-3xl" />
+        <div className="absolute -top-40 left-1/2 h-[440px] w-[440px] -translate-x-1/2 rounded-full bg-sky-200/60 blur-3xl" />
+        <div className="absolute -bottom-44 right-[-120px] h-[480px] w-[480px] rounded-full bg-emerald-200/60 blur-3xl" />
       </div>
 
       <div className="relative mx-auto max-w-3xl px-4 py-10">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-sm font-semibold text-slate-200 hover:text-white">
+          <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
             Back
           </Link>
-          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
+          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
             No login required
           </div>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
-          <div className="border-b border-white/10 bg-slate-950/30 p-6">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Company</div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Register your company</h1>
-            <p className="mt-2 text-sm text-slate-200">
+        <div className="mt-6 overflow-hidden rounded-3xl border border-slate-100 bg-white/90 shadow-xl backdrop-blur">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-white via-slate-50 to-sky-50 p-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Company</div>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Register your company</h1>
+            <p className="mt-2 text-sm text-slate-600">
               Submit your details. Our team will connect with you to understand requirements and start sharing
               suitable candidates.
             </p>
@@ -137,25 +137,25 @@ export default function RegisterCompanyPage() {
           <div className="p-6">
             {success ? (
               <div className="space-y-3">
-                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4">
-                  <div className="text-sm font-semibold text-emerald-200">Registration submitted</div>
-                  <div className="mt-1 text-sm text-slate-200">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="text-sm font-semibold text-emerald-700">Registration submitted</div>
+                  <div className="mt-1 text-sm text-emerald-800">
                     Thank you! We received your company registration.
                   </div>
                   {success.companyId ? (
-                    <div className="mt-2 text-xs text-slate-300">Company ID: {success.companyId}</div>
+                    <div className="mt-2 text-xs text-emerald-700">Company ID: {success.companyId}</div>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Link
                     href="/"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                   >
                     Go to Home
                   </Link>
                   <button
                     type="button"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                     onClick={() => {
                       setSuccess(null);
                       setForm({
@@ -180,148 +180,148 @@ export default function RegisterCompanyPage() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
                 {errorMsg ? (
-                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                     {errorMsg}
                   </div>
                 ) : null}
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
-                    <label className="text-xs font-semibold text-slate-200">Company name *</label>
+                    <label className="text-xs font-semibold text-slate-700">Company name *</label>
                     <Input
                       value={form.name}
                       onChange={(e) => updateField("name", e.target.value)}
                       placeholder="e.g. ABC Traders"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Contact person</label>
+                    <label className="text-xs font-semibold text-slate-700">Contact person</label>
                     <Input
                       value={form.contact_person}
                       onChange={(e) => updateField("contact_person", e.target.value)}
                       placeholder="e.g. Ravi"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Contact number</label>
+                    <label className="text-xs font-semibold text-slate-700">Contact number</label>
                     <Input
                       value={form.contact_number}
                       onChange={(e) => updateField("contact_number", e.target.value)}
                       placeholder="e.g. 9876543210"
                       inputMode="numeric"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Alternate number</label>
+                    <label className="text-xs font-semibold text-slate-700">Alternate number</label>
                     <Input
                       value={form.alternate_number}
                       onChange={(e) => updateField("alternate_number", e.target.value)}
                       placeholder="Optional"
                       inputMode="numeric"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Email</label>
+                    <label className="text-xs font-semibold text-slate-700">Email</label>
                     <Input
                       value={form.email}
                       onChange={(e) => updateField("email", e.target.value)}
                       placeholder="e.g. abc@traders.com"
                       type="email"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs font-semibold text-slate-200">Address</label>
+                    <label className="text-xs font-semibold text-slate-700">Address</label>
                     <Input
                       value={form.address}
                       onChange={(e) => updateField("address", e.target.value)}
                       placeholder="Office address"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Google map URL</label>
+                    <label className="text-xs font-semibold text-slate-700">Google map URL</label>
                     <Input
                       value={form.google_map_url}
                       onChange={(e) => updateField("google_map_url", e.target.value)}
                       placeholder="https://maps.google.com/..."
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Location link</label>
+                    <label className="text-xs font-semibold text-slate-700">Location link</label>
                     <Input
                       value={form.location_link}
                       onChange={(e) => updateField("location_link", e.target.value)}
                       placeholder="Optional"
-                      className="mt-1 border-white/10 bg-slate-950/30 text-white placeholder:text-slate-400"
+                      className="mt-1 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                       disabled={submitting}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-200">Notes</label>
+                  <label className="text-xs font-semibold text-slate-700">Notes</label>
                   <textarea
                     value={form.notes}
                     onChange={(e) => updateField("notes", e.target.value)}
                     placeholder="Any notes for our team (e.g. call after 6 PM)"
                     disabled={submitting}
-                    className="mt-1 w-full rounded-md border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-white outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
+                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1"
                     rows={3}
                   />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Visiting card (optional)</label>
+                    <label className="text-xs font-semibold text-slate-700">Visiting card (optional)</label>
                     <input
                       type="file"
                       onChange={(e) => setVisitingCard(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
                       disabled={submitting}
-                      className="mt-2 block w-full text-xs text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-white/15"
+                      className="mt-2 block w-full text-xs text-slate-700 file:mr-4 file:rounded-lg file:border file:border-slate-200 file:bg-white file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-800 hover:file:bg-slate-50"
                     />
-                    <div className="mt-1 text-[11px] text-slate-400">Max 5 MB</div>
+                    <div className="mt-1 text-[11px] text-slate-500">Max 5 MB</div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-200">Front image (optional)</label>
+                    <label className="text-xs font-semibold text-slate-700">Front image (optional)</label>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={(e) => setFrontImage(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
                       disabled={submitting}
-                      className="mt-2 block w-full text-xs text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-white/15"
+                      className="mt-2 block w-full text-xs text-slate-700 file:mr-4 file:rounded-lg file:border file:border-slate-200 file:bg-white file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-800 hover:file:bg-slate-50"
                     />
-                    <div className="mt-1 text-[11px] text-slate-400">JPG/PNG/WebP, max 5 MB</div>
+                    <div className="mt-1 text-[11px] text-slate-500">JPG/PNG/WebP, max 5 MB</div>
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-xs text-slate-300">
-                    Submit mode: <span className="font-semibold text-slate-100">{hasFiles ? "Multipart" : "JSON"}</span>
+                  <div className="text-xs text-slate-500">
+                    Submit mode: <span className="font-semibold text-slate-800">{hasFiles ? "Multipart" : "JSON"}</span>
                   </div>
                   <div className="flex gap-2">
                     <Link
                       href="/"
-                      className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                     >
                       Cancel
                     </Link>
