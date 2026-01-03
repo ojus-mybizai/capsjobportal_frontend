@@ -9,14 +9,16 @@ import { paymentsLedger } from "@/services/payments";
 import { listCompanies, getCompany } from "@/services/companies";
 import { listJobs, getJob } from "@/services/jobs";
 import { listCandidates, getCandidate } from "@/services/candidates";
-import { createCompanyPayment } from "@/services/companies";
-import { createCandidatePayment } from "@/services/candidates";
+import { createCompanyPayment, updateCompanyPayment, deleteCompanyPayment } from "@/services/companies";
+import { createCandidatePayment, updateCandidatePayment, deleteCandidatePayment } from "@/services/candidates";
 import { listInterviews, getInterview } from "@/services/interviews";
 import {
   createPlacementIncome,
   createPlacementIncomePayment,
   getPlacementIncome,
   listPlacementIncomes,
+  updatePlacementIncomePayment,
+  deletePlacementIncomePayment,
 } from "@/services/placementIncomes";
 import PaginatedTable from "@/components/table/PaginatedTable";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
@@ -156,8 +158,12 @@ function PaymentsPageInner() {
   const [loading, setLoading] = useState(false);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [addType, setAddType] = useState("COMPANY_PAYMENT");
   const [savingPayment, setSavingPayment] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingPayment, setDeletingPayment] = useState(false);
 
   const [companyPaymentCompanyId, setCompanyPaymentCompanyId] = useState("");
   const [companyPaymentAmount, setCompanyPaymentAmount] = useState("");
@@ -255,6 +261,38 @@ function PaymentsPageInner() {
     setIncomePaymentAmount("");
     setIncomePaymentPaidDate("");
     setIncomePaymentRemarks("");
+  }
+
+  function openEditPayment(payment) {
+    setEditingPayment(payment);
+    setEditModalOpen(true);
+    setSavingPayment(false);
+
+    const source = payment?.source || "";
+    
+    if (source === "COMPANY_PAYMENT") {
+      setAddType("COMPANY_PAYMENT");
+      setCompanyPaymentCompanyId(payment?.company_id || "");
+      setCompanyPaymentAmount(String(payment?.amount || ""));
+      setCompanyPaymentDate(payment?.payment_date || "");
+    } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
+      setAddType("CANDIDATE_PAYMENT");
+      setCandidatePaymentCandidateId(payment?.candidate_id || "");
+      setCandidatePaymentAmount(String(payment?.amount || ""));
+      setCandidatePaymentDate(payment?.payment_date || "");
+      setCandidatePaymentRemarks(payment?.remarks || "");
+    } else if (source === "PLACEMENT_INCOME_PAYMENT") {
+      setAddType("PLACEMENT_INCOME_PAYMENT");
+      setIncomePaymentIncomeId(payment?.placement_income_id || "");
+      setIncomePaymentAmount(String(payment?.amount || ""));
+      setIncomePaymentPaidDate(payment?.paid_date || payment?.payment_date || "");
+      setIncomePaymentRemarks(payment?.remarks || "");
+    }
+  }
+
+  function openDeleteConfirm(payment) {
+    setEditingPayment(payment);
+    setDeleteConfirmOpen(true);
   }
 
   async function handlePlacementIncomeInterviewChange(next) {
@@ -790,6 +828,100 @@ function PaymentsPageInner() {
     }
   }
 
+  async function handleEditPayment() {
+    if (savingPayment || !editingPayment) return;
+    setSavingPayment(true);
+    try {
+      const paymentId = String(editingPayment.id || "");
+      const source = editingPayment?.source || "";
+
+      if (source === "COMPANY_PAYMENT") {
+        const companyId = String(companyPaymentCompanyId || "").trim();
+        const amount = Number(companyPaymentAmount);
+        const paymentDate = String(companyPaymentDate || "").trim();
+        if (!companyId) throw new Error("Company is required");
+        if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be greater than 0");
+        if (!paymentDate) throw new Error("Payment date is required");
+        await updateCompanyPayment(paymentId, {
+          amount: Math.floor(amount),
+          payment_date: paymentDate,
+        });
+      } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
+        const candidateId = String(candidatePaymentCandidateId || "").trim();
+        const amount = Number(candidatePaymentAmount);
+        const paymentDate = String(candidatePaymentDate || "").trim();
+        const remarks = String(candidatePaymentRemarks || "").trim();
+        if (!candidateId) throw new Error("Candidate is required");
+        if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be greater than 0");
+        if (!paymentDate) throw new Error("Payment date is required");
+        await updateCandidatePayment(paymentId, {
+          amount: Math.floor(amount),
+          payment_date: paymentDate,
+          remarks: remarks || undefined,
+        });
+      } else if (source === "PLACEMENT_INCOME_PAYMENT") {
+        const incomeId = String(incomePaymentIncomeId || "").trim();
+        const amount = Number(incomePaymentAmount);
+        const paidDate = String(incomePaymentPaidDate || "").trim();
+        const remarks = String(incomePaymentRemarks || "").trim();
+        if (!incomeId) throw new Error("Placement income is required");
+        if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be greater than 0");
+        if (!paidDate) throw new Error("Paid date is required");
+        await updatePlacementIncomePayment(paymentId, {
+          amount: Math.floor(amount),
+          paid_date: paidDate,
+          remarks: remarks || undefined,
+        });
+      }
+
+      setEditModalOpen(false);
+      setEditingPayment(null);
+      setRefreshTick(Date.now());
+    } catch (error) {
+      pushToast({
+        title: "Failed to update payment",
+        description:
+          (error && error.message) || "An error occurred while updating the payment.",
+      });
+    } finally {
+      setSavingPayment(false);
+    }
+  }
+
+  async function handleDeletePayment() {
+    if (deletingPayment || !editingPayment) return;
+    setDeletingPayment(true);
+    try {
+      const paymentId = String(editingPayment.id || "");
+      const source = editingPayment?.source || "";
+
+      if (source === "COMPANY_PAYMENT") {
+        await deleteCompanyPayment(paymentId);
+      } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
+        await deleteCandidatePayment(paymentId);
+      } else if (source === "PLACEMENT_INCOME_PAYMENT") {
+        await deletePlacementIncomePayment(paymentId);
+      }
+
+      setDeleteConfirmOpen(false);
+      setEditingPayment(null);
+      setRefreshTick(Date.now());
+      
+      pushToast({
+        title: "Payment deleted",
+        description: "The payment has been successfully deleted.",
+      });
+    } catch (error) {
+      pushToast({
+        title: "Failed to delete payment",
+        description:
+          (error && error.message) || "An error occurred while deleting the payment.",
+      });
+    } finally {
+      setDeletingPayment(false);
+    }
+  }
+
   function setSources(nextSources) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("source");
@@ -946,6 +1078,38 @@ function PaymentsPageInner() {
                   {l.label}
                 </Link>
               ))}
+            </div>
+          );
+        },
+      },
+      {
+        key: "actions",
+        label: "Actions",
+        render: (_value, row) => {
+          const paymentId = row?.id ? String(row.id) : "";
+          const source = row?.source ? String(row.source) : "";
+
+          if (!paymentId) return "-";
+
+          return (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() => openEditPayment(row)}
+              >
+                Edit
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                className="text-red-600 hover:text-red-700 hover:border-red-300"
+                onClick={() => openDeleteConfirm(row)}
+              >
+                Delete
+              </Button>
             </div>
           );
         },
@@ -1460,6 +1624,241 @@ function PaymentsPageInner() {
             </Button>
             <Button type="button" onClick={handleSubmitPayment} disabled={savingPayment}>
               {savingPayment ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Payment Modal */}
+      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Payment">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <div className="text-[11px] font-medium text-slate-700">Payment Type</div>
+            <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-2 text-sm">
+              {addType === "COMPANY_PAYMENT" && "Company Payment"}
+              {addType === "CANDIDATE_PAYMENT" && "Candidate Payment"}
+              {addType === "PLACEMENT_INCOME_PAYMENT" && "Placement Income Payment"}
+            </div>
+          </div>
+
+          {addType === "COMPANY_PAYMENT" ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Company</div>
+                <AsyncSearchSelect
+                  value={companyPaymentCompanyId}
+                  onChange={(v) => setCompanyPaymentCompanyId(v || "")}
+                  onSelectOption={(item) => {
+                    const key = getCompanyOptionValue(item);
+                    const label = getCompanyOptionLabel(item);
+                    if (key && label) {
+                      setCompanyLabelMap((prev) => ({ ...prev, [String(key)]: label }));
+                    }
+                  }}
+                  placeholder="Select a company"
+                  searchPlaceholder="Search companies..."
+                  loadOptions={loadCompanyOptions}
+                  resolveSelectedLabel={resolveCompanyLabel}
+                  getOptionLabel={getCompanyOptionLabel}
+                  getOptionValue={getCompanyOptionValue}
+                  allowClear
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Amount</div>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={companyPaymentAmount}
+                  onChange={(e) => setCompanyPaymentAmount(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <div className="text-[11px] font-medium text-slate-700">Payment date</div>
+                <Input
+                  type="datetime-local"
+                  value={companyPaymentDate}
+                  onChange={(e) => setCompanyPaymentDate(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {(addType === "CANDIDATE_PAYMENT") ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Candidate</div>
+                <AsyncSearchSelect
+                  value={candidatePaymentCandidateId}
+                  onChange={(v) => setCandidatePaymentCandidateId(v || "")}
+                  onSelectOption={(item) => {
+                    const key = getCandidateOptionValue(item);
+                    const label = getCandidateOptionLabel(item);
+                    if (key && label) {
+                      setCandidateLabelMap((prev) => ({ ...prev, [String(key)]: label }));
+                    }
+                  }}
+                  placeholder="Select a candidate"
+                  searchPlaceholder="Search candidates..."
+                  loadOptions={loadCandidateOptions}
+                  resolveSelectedLabel={resolveCandidateLabel}
+                  getOptionLabel={getCandidateOptionLabel}
+                  getOptionValue={getCandidateOptionValue}
+                  allowClear
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Amount</div>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={candidatePaymentAmount}
+                  onChange={(e) => setCandidatePaymentAmount(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Payment date</div>
+                <Input
+                  type="datetime-local"
+                  value={candidatePaymentDate}
+                  onChange={(e) => setCandidatePaymentDate(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <div className="text-[11px] font-medium text-slate-700">Remarks</div>
+                <Input
+                  value={candidatePaymentRemarks}
+                  onChange={(e) => setCandidatePaymentRemarks(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {addType === "PLACEMENT_INCOME_PAYMENT" ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Placement income</div>
+                <AsyncSearchSelect
+                  value={incomePaymentIncomeId}
+                  onChange={(v) => setIncomePaymentIncomeId(v || "")}
+                  onSelectOption={(item) => {
+                    const key = getPlacementIncomeOptionValue(item);
+                    const label = getPlacementIncomeOptionLabel(item);
+                    if (key && label) {
+                      setIncomeLabelMap((prev) => ({ ...prev, [String(key)]: label }));
+                    }
+                  }}
+                  placeholder="Select placement income"
+                  searchPlaceholder="Search placement incomes..."
+                  loadOptions={loadPlacementIncomeOptions}
+                  resolveSelectedLabel={resolvePlacementIncomeLabel}
+                  getOptionLabel={getPlacementIncomeOptionLabel}
+                  getOptionValue={getPlacementIncomeOptionValue}
+                  allowClear
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Amount</div>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={incomePaymentAmount}
+                  onChange={(e) => setIncomePaymentAmount(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-700">Paid date</div>
+                <Input
+                  type="datetime-local"
+                  value={incomePaymentPaidDate}
+                  onChange={(e) => setIncomePaymentPaidDate(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <div className="text-[11px] font-medium text-slate-700">Remarks</div>
+                <Input
+                  value={incomePaymentRemarks}
+                  onChange={(e) => setIncomePaymentRemarks(e.target.value)}
+                  disabled={savingPayment}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditModalOpen(false)}
+              disabled={savingPayment}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleEditPayment} disabled={savingPayment}>
+              {savingPayment ? "Updating..." : "Update"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Delete Payment">
+        <div className="space-y-4">
+          <div className="text-sm text-slate-600">
+            Are you sure you want to delete this payment? This action cannot be undone.
+          </div>
+          
+          {editingPayment && (
+            <div className="rounded-md bg-slate-50 p-3 text-xs">
+              <div className="font-medium text-slate-900">
+                {buildDisplayTitle(editingPayment)}
+              </div>
+              <div className="mt-1 text-slate-600">
+                Amount: {formatCurrency(editingPayment.amount)}
+              </div>
+              <div className="text-slate-600">
+                Date: {editingPayment.payment_date ? dayjs(editingPayment.payment_date).format("YYYY-MM-DD HH:mm") : "-"}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deletingPayment}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeletePayment}
+              disabled={deletingPayment}
+            >
+              {deletingPayment ? "Deleting..." : "Delete"}
             </Button>
           </div>
         </div>

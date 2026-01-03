@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { api } from "@/services/api";
 import { useUIStore } from "@/stores/ui";
+import { useAuthStore } from "@/stores/auth";
 
 // ---------- helpers ----------
 function computeRangeDates(range) {
@@ -17,6 +18,7 @@ function computeRangeDates(range) {
   if (range === "today") return { from: today, to: today };
   if (range === "this_week") return { from: now.startOf("week").format("YYYY-MM-DD"), to: today };
   if (range === "this_month") return { from: now.startOf("month").format("YYYY-MM-DD"), to: today };
+  if (range === "till_date") return { from: "", to: today };
   if (range === "quarter") {
     const qStart = Math.floor(now.month() / 3) * 3;
     return { from: now.month(qStart).startOf("month").format("YYYY-MM-DD"), to: today };
@@ -84,7 +86,21 @@ function FinanceTile({ title, value, loading, highlight, color, onClick }) {
   );
 }
 
-function AnalyticsCard({ title, ctaLabel, onView, children }) {
+function AnalyticsCard({ title, ctaLabel, onView, children, showCopyLink = false, copyLinkData = null }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = async () => {
+    if (copyLinkData) {
+      try {
+        await navigator.clipboard.writeText(copyLinkData);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy link:', err);
+      }
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-slate-200/70">
       <div className="mb-4 flex items-center justify-between">
@@ -92,15 +108,40 @@ function AnalyticsCard({ title, ctaLabel, onView, children }) {
           <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_4px_rgba(59,130,246,0.08)]" />
           <div className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-700">{title}</div>
         </div>
-        {onView ? (
-          <button
-            type="button"
-            onClick={onView}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            {ctaLabel || "View"}
-          </button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {showCopyLink && copyLinkData && (
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 flex items-center gap-1"
+            >
+              {copied ? (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy Link
+                </>
+              )}
+            </button>
+          )}
+          {onView ? (
+            <button
+              type="button"
+              onClick={onView}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              {ctaLabel || "View"}
+            </button>
+          ) : null}
+        </div>
       </div>
       {children}
     </div>
@@ -193,6 +234,7 @@ function DashboardPageInner() {
   const searchParams = useSearchParams();
   const setPageMetadata = useUIStore((s) => s.setPageMetadata);
   const pushToast = useUIStore((s) => s.pushToast);
+  const user = useAuthStore((s) => s.user);
 
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingPendingDues, setLoadingPendingDues] = useState(false);
@@ -203,7 +245,7 @@ function DashboardPageInner() {
   const startDateParam = searchParams.get("start_date") || "";
   const endDateParam = searchParams.get("end_date") || "";
   const endOfMonth = dayjs().endOf("month").format("YYYY-MM-DD");
-  const selectedRange = rangeParam || "this_month";
+  const selectedRange = rangeParam || "till_date";
   const [dueBefore, setDueBefore] = useState(endOfMonth);
 
   const customRangeLabel =
@@ -316,7 +358,7 @@ function DashboardPageInner() {
   useEffect(() => {
     if (rangeParam) return;
     if (startDateParam || endDateParam) return;
-    applyRange("this_month");
+    applyRange("till_date");
     loadPendingDues(endOfMonth);
   }, [rangeParam, startDateParam, endDateParam]);
 
@@ -501,6 +543,24 @@ function DashboardPageInner() {
                 </button>
                 <button
                   type="button"
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                    selectedRange === "till_date"
+                      ? "text-white shadow-sm"
+                      : "text-slate-800"
+                  }`}
+                  style={{
+                    backgroundColor: selectedRange === "till_date" ? "var(--accent)" : "transparent",
+                    boxShadow: selectedRange === "till_date" ? "0 6px 14px -6px var(--accent)" : "none",
+                  }}
+                  onClick={() => {
+                    setCustomOpen(false);
+                    applyRange("till_date");
+                  }}
+                >
+                  Till date
+                </button>
+                <button
+                  type="button"
                   ref={rangeAnchorRef}
                   className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
                     selectedRange === "custom"
@@ -541,7 +601,13 @@ function DashboardPageInner() {
         </div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <AnalyticsCard title="Companies" ctaLabel="View companies" onView={() => navigateTo("/companies", {})}>
+          <AnalyticsCard 
+            title="Companies" 
+            ctaLabel="View companies" 
+            onView={() => navigateTo("/companies", {})}
+            showCopyLink={true}
+            copyLinkData={`${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/public/add-company?user_id=${user?.id || ''}`}
+          >
             <DonutDistribution
               items={companiesStatusChart}
               onSelect={(it) => navigateTo("/companies", { company_status: it?.status || "" })}

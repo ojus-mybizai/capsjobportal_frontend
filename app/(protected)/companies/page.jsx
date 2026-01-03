@@ -44,6 +44,7 @@ function CompaniesPageInner() {
   const categoryIdParam = searchParams.get("category_id") || "";
   const locationAreaIdParam = searchParams.get("location_area_id") || "";
   const createdByParam = searchParams.get("created_by") || "";
+  const createdByIsNullParam = searchParams.get("created_by_is_null") || "";
   const emailParam = searchParams.get("email") || "";
   const contactNumberParam = searchParams.get("contact_number") || "";
   const createdFromParam = searchParams.get("created_from") || "";
@@ -61,6 +62,7 @@ function CompaniesPageInner() {
     categoryIdParam,
     locationAreaIdParam,
     createdByParam,
+    createdByIsNullParam,
     emailParam,
     contactNumberParam,
     createdFromParam,
@@ -84,6 +86,7 @@ function CompaniesPageInner() {
     if (emailParam) items.push({ key: "email", label: "Email", value: emailParam });
     if (contactNumberParam) items.push({ key: "contact_number", label: "Contact", value: contactNumberParam });
     if (createdByParam) items.push({ key: "created_by", label: "Created by", value: createdByParam });
+    if (createdByIsNullParam === "true") items.push({ key: "created_by_is_null", label: "Via Link", value: "Yes" });
     if (createdFromParam) items.push({ key: "created_from", label: "Created from", value: createdFromParam });
     if (createdToParam) items.push({ key: "created_to", label: "Created to", value: createdToParam });
     if (isActiveParam) items.push({ key: "is_active", label: "Active", value: isActiveParam });
@@ -98,12 +101,15 @@ function CompaniesPageInner() {
     emailParam,
     contactNumberParam,
     createdByParam,
+    createdByIsNullParam,
     createdFromParam,
     createdToParam,
     isActiveParam,
     sortByParam,
     orderParam,
   ]);
+
+  const viaLinkChecked = createdByIsNullParam === "true";
 
   const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
@@ -221,6 +227,27 @@ function CompaniesPageInner() {
       params.delete("is_verified");
     }
 
+    if (key === "created_by") {
+      params.delete("created_by_is_null");
+    }
+
+    params.set("page", "1");
+    const qs = params.toString();
+    if (qs === searchParamsString) return;
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  function setViaLink(checked) {
+    const params = new URLSearchParams(searchParamsString);
+
+    if (checked) {
+      params.set("created_by_is_null", "true");
+      params.delete("created_by");
+      setCreatedBy("");
+    } else {
+      params.delete("created_by_is_null");
+    }
+
     params.set("page", "1");
     const qs = params.toString();
     if (qs === searchParamsString) return;
@@ -231,6 +258,7 @@ function CompaniesPageInner() {
     if (key === "email") setEmail("");
     if (key === "contact_number") setContactNumber("");
     if (key === "created_by") setCreatedBy("");
+    if (key === "created_by_is_null") setViaLink(false);
     if (key === "created_from") setParam("created_from", "");
     if (key === "created_to") setParam("created_to", "");
     if (key === "verification_status") setParam("verification_status", "");
@@ -277,6 +305,7 @@ function CompaniesPageInner() {
       "category_id",
       "location_area_id",
       "created_by",
+      "created_by_is_null",
       "email",
       "contact_number",
       "created_from",
@@ -309,7 +338,8 @@ function CompaniesPageInner() {
               : false,
           category_id: categoryIdParam || undefined,
           location_area_id: locationAreaIdParam || undefined,
-          created_by: createdByParam || undefined,
+          created_by: viaLinkChecked ? undefined : createdByParam || undefined,
+          created_by_is_null: viaLinkChecked ? true : undefined,
           email: emailParam || undefined,
           contact_number: contactNumberParam || undefined,
           created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
@@ -519,6 +549,19 @@ function CompaniesPageInner() {
                 <option value="true">Verified</option>
                 <option value="false">Not verified</option>
               </Select>
+            </div>
+
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input
+                id="via-link"
+                type="checkbox"
+                checked={viaLinkChecked}
+                onChange={(e) => setViaLink(e.target.checked)}
+                className="h-4 w-4 accent-[var(--accent)]"
+              />
+              <label htmlFor="via-link" className="text-sm font-medium text-slate-700">
+                Via Link
+              </label>
             </div>
           </div>
 

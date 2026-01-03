@@ -65,3 +65,23 @@ export function createPlacementIncomePayment(incomeId, payload) {
     .post(`placement-incomes/${incomeId}/payments`, body)
     .then((result) => ensureObjectData(result, "Failed to create placement income payment"));
 }
+
+export function updatePlacementIncomePayment(paymentId, payload) {
+  const body = stripEmpty(payload);
+
+  if (USE_MOCK_DATA) {
+    return Promise.resolve({ id: paymentId, ...body });
+  }
+
+  return api
+    .put(`placement-incomes/payments/${paymentId}`, body)
+    .then((result) => ensureObjectData(result, "Failed to update placement income payment"));
+}
+
+export function deletePlacementIncomePayment(paymentId) {
+  if (USE_MOCK_DATA) {
+    return Promise.resolve({ id: paymentId });
+  }
+
+  return api.delete(`placement-incomes/payments/${paymentId}`);
+}

@@ -52,6 +52,8 @@ function CandidatesPageInner() {
   const experienceMaxParam = searchParams.get("experience_max") || "";
   const createdFromParam = searchParams.get("created_from") || "";
   const createdToParam = searchParams.get("created_to") || "";
+  const createdByParam = searchParams.get("created_by") || "";
+  const createdByIsNullParam = searchParams.get("created_by_is_null") || "";
   const hasResumeParam = searchParams.get("has_resume") || "";
   const hasPhotoParam = searchParams.get("has_photo") || "";
   const isActiveParam = searchParams.get("is_active") || "";
@@ -76,6 +78,8 @@ function CandidatesPageInner() {
     experienceMaxParam,
     createdFromParam,
     createdToParam,
+    createdByParam,
+    createdByIsNullParam,
     hasResumeParam,
     hasPhotoParam,
     isActiveParam,
@@ -115,6 +119,8 @@ function CandidatesPageInner() {
     if (createdFromParam)
       items.push({ key: "created_from", label: "Created from", value: createdFromParam });
     if (createdToParam) items.push({ key: "created_to", label: "Created to", value: createdToParam });
+    if (createdByParam) items.push({ key: "created_by", label: "Created by", value: createdByParam });
+    if (createdByIsNullParam === "true") items.push({ key: "created_by_is_null", label: "Via Link", value: "Yes" });
     if (hasResumeParam) items.push({ key: "has_resume", label: "Has resume", value: hasResumeParam });
     if (hasPhotoParam) items.push({ key: "has_photo", label: "Has photo", value: hasPhotoParam });
     if (isActiveParam) items.push({ key: "is_active", label: "Active", value: isActiveParam });
@@ -137,6 +143,8 @@ function CandidatesPageInner() {
     experienceMaxParam,
     createdFromParam,
     createdToParam,
+    createdByParam,
+    createdByIsNullParam,
     hasResumeParam,
     hasPhotoParam,
     isActiveParam,
@@ -144,6 +152,8 @@ function CandidatesPageInner() {
     orderParam,
     skillsParam,
   ]);
+
+  const viaLinkChecked = createdByIsNullParam === "true";
 
   useEffect(() => {
     setPageMetadata("Candidates", "Manage candidates and their applications");
@@ -273,6 +283,27 @@ function CandidatesPageInner() {
     const params = new URLSearchParams(searchParamsString);
     if (value == null || value === "") params.delete(key);
     else params.set(key, String(value));
+
+    if (key === "created_by") {
+      params.delete("created_by_is_null");
+    }
+
+    params.set("page", "1");
+    const qs = params.toString();
+    if (qs === searchParamsString) return;
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  function setViaLink(checked) {
+    const params = new URLSearchParams(searchParamsString);
+
+    if (checked) {
+      params.set("created_by_is_null", "true");
+      params.delete("created_by");
+    } else {
+      params.delete("created_by_is_null");
+    }
+
     params.set("page", "1");
     const qs = params.toString();
     if (qs === searchParamsString) return;
@@ -283,6 +314,10 @@ function CandidatesPageInner() {
     if (key === "skills") {
       setSkillsText("");
       setMultiParam("skills", []);
+      return;
+    }
+    if (key === "created_by_is_null") {
+      setViaLink(false);
       return;
     }
     if (key === "email") setEmail("");
@@ -327,6 +362,8 @@ function CandidatesPageInner() {
       "has_photo",
       "created_from",
       "created_to",
+      "created_by",
+      "created_by_is_null",
       "is_active",
       "sort_by",
       "order",
@@ -420,6 +457,8 @@ function CandidatesPageInner() {
           experience_min: experienceMinParam || undefined,
           experience_max: experienceMaxParam || undefined,
           skills: Array.isArray(skillsParam) && skillsParam.length ? skillsParam : undefined,
+          created_by: viaLinkChecked ? undefined : createdByParam || undefined,
+          created_by_is_null: viaLinkChecked ? true : undefined,
           has_resume:
             hasResumeParam === "true"
               ? true
@@ -439,6 +478,7 @@ function CandidatesPageInner() {
           sort_by: sortByParam || undefined,
           order: orderParam || undefined,
         });
+        console.log(result);
         if (!active) return;
 
         const items = Array.isArray(result?.items)
@@ -719,6 +759,19 @@ function CandidatesPageInner() {
                 onChange={(e) => setQualification(e.target.value)}
                 placeholder="qualification contains…"
               />
+            </div>
+
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input
+                id="via-link"
+                type="checkbox"
+                checked={viaLinkChecked}
+                onChange={(e) => setViaLink(e.target.checked)}
+                className="h-4 w-4 accent-[var(--accent)]"
+              />
+              <label htmlFor="via-link" className="text-sm font-medium text-slate-700">
+                Via Link
+              </label>
             </div>
           </div>
 

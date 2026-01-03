@@ -9,6 +9,7 @@ import Table from "@/components/table/Table";
 import Button from "@/components/ui/Button";
 import { listJobs, getJob, listJobRelatedCandidates } from "@/services/jobs";
 import { listCandidates, getCandidate, listCandidateRelatedJobs } from "@/services/candidates";
+import { listCompanies } from "@/services/companies";
 import dayjs from "dayjs";
 
 function toArray(payload) {
@@ -44,7 +45,9 @@ function AISearchInner() {
 
   const jobIdParam = searchParams.get("job_id") || "";
   const candidateIdParam = searchParams.get("candidate_id") || "";
+  const companyIdParam = searchParams.get("company_id") || "";
 
+  const [companyId, setCompanyId] = useState(companyIdParam);
   const [jobId, setJobId] = useState(jobIdParam);
   const [candidateId, setCandidateId] = useState(candidateIdParam);
   const [includeInactive, setIncludeInactive] = useState(false);
@@ -65,6 +68,18 @@ function AISearchInner() {
   useEffect(() => {
     setCandidateId(candidateIdParam);
   }, [candidateIdParam]);
+
+  useEffect(() => {
+    setCompanyId(companyIdParam);
+  }, [companyIdParam]);
+
+  // Reset job selection when company changes
+  useEffect(() => {
+    if (companyId) {
+      setJobId("");
+      setParam("job_id", "");
+    }
+  }, [companyId]);
 
   const jobColumns = useMemo(
     () => [
@@ -182,14 +197,29 @@ function AISearchInner() {
     router.replace(qs ? `?${qs}` : "");
   }
 
-  async function loadJobOptions({ query, limit }) {
-    const result = await listJobs({ page: 1, limit: limit || 20, q: (query || "").trim() || undefined });
+  async function loadCompanyOptions({ query, limit }) {
+    const params = { page: 1, limit: limit || 20 };
+    if (query && query.trim()) {
+      params.q = query.trim();
+    }
+    const result = await listCompanies(params);
     const items = Array.isArray(result?.items)
       ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
+      : [];
+    return items;
+  }
+
+  async function loadJobOptions({ query, limit }) {
+    const params = { page: 1, limit: limit || 20 };
+    if (query && query.trim()) {
+      params.q = query.trim();
+    }
+    if (companyId) {
+      params.company_id = companyId;
+    }
+    const result = await listJobs(params);
+    const items = Array.isArray(result?.items)
+      ? result.items
       : [];
     return items;
   }
@@ -284,9 +314,27 @@ function AISearchInner() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-sm font-semibold text-slate-900">Related candidates by job</div>
-            <div className="mt-1 text-xs text-slate-600">Pick a job to see matching candidates.</div>
+            <div className="mt-1 text-xs text-slate-600">First select a company, then pick a job to see matching candidates.</div>
           </div>
           <div className="flex w-full flex-col gap-2 md:w-[480px] md:flex-row md:items-center md:justify-end">
+            <AsyncSearchSelect
+              value={companyId}
+              onChange={(v) => {
+                setCompanyId(v || "");
+                setParam("company_id", v || "");
+              }}
+              onSelectOption={(item) => {
+                const key = item?.id != null ? String(item.id) : item?.value ? String(item.value) : "";
+                setCompanyId(key);
+                setParam("company_id", key);
+              }}
+              placeholder="Select company"
+              searchPlaceholder="Search companies..."
+              loadOptions={loadCompanyOptions}
+              getOptionLabel={(c) => c?.name || c?.label || ""}
+              getOptionValue={(c) => (c?.id != null ? String(c.id) : c?.value ? String(c.value) : "")}
+              allowClear
+            />
             <AsyncSearchSelect
               value={jobId}
               onChange={(v) => {
@@ -374,6 +422,7 @@ function AISearchInner() {
           variant="outline"
           size="sm"
           onClick={() => {
+            setCompanyId("");
             setJobId("");
             setCandidateId("");
             setIncludeInactive(false);
