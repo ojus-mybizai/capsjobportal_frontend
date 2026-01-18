@@ -6,9 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useUIStore } from "@/stores/ui";
 import { useInterviewsStore } from "@/stores/interviews";
-import { listCompanies } from "@/services/companies";
-import { listJobs } from "@/services/jobs";
-import { listCandidates } from "@/services/candidates";
+import { listCompanies, listCompanyOptions } from "@/services/companies";
+import { listJobs, listJobOptions } from "@/services/jobs";
+import { listCandidates, listCandidateOptions } from "@/services/candidates";
 import { deleteInterview } from "@/services/interviews";
 import PaginatedTable from "@/components/table/PaginatedTable";
 import Button from "@/components/ui/Button";
@@ -269,32 +269,22 @@ function InterviewsPageInner() {
   }, [page, filtersKey, refreshTick, list, pushToast]);
 
   async function loadCompanyOptions({ query, limit }) {
-    const result = await listCompanies({ page: 1, limit: limit || 20, q: query || "" });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
+    // Use lightweight /options endpoint for dropdown
+    return await listCompanyOptions({ q: query || "", limit: limit || 20 });
   }
 
   async function loadJobOptions({ query, limit }) {
-    const result = await listJobs({
-      page: 1,
-      limit: limit || 20,
+    // Use lightweight /options endpoint for dropdown
+    return await listJobOptions({
       q: query || "",
       company_id: companyIdParam || undefined,
+      limit: limit || 20,
     });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
   }
 
   async function loadCandidateOptions({ query, limit }) {
-    const result = await listCandidates({ page: 1, limit: limit || 20, q: query || "" });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
+    // Use lightweight /options endpoint for dropdown
+    return await listCandidateOptions({ q: query || "", limit: limit || 20 });
   }
 
   function truncateRemark(text, maxWords = 50) {
@@ -444,7 +434,7 @@ function InterviewsPageInner() {
                 searchPlaceholder="Search companies..."
                 loadOptions={loadCompanyOptions}
                 getOptionValue={(c) => c.id}
-                getOptionLabel={(c) => c.name || c.title || c.company_name || `Company #${c.id}`}
+                getOptionLabel={(c) => c.name || `Company #${c.id}`}
                 allowClear
               />
             </div>
@@ -461,7 +451,7 @@ function InterviewsPageInner() {
                 searchPlaceholder="Search jobs..."
                 loadOptions={loadJobOptions}
                 getOptionValue={(j) => j.id}
-                getOptionLabel={(j) => j.title || j.name || `Job #${j.id}`}
+                getOptionLabel={(j) => j.name || `Job #${j.id}`}
                 allowClear={!!companyIdParam}
               />
             </div>

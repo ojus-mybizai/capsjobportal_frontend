@@ -8,8 +8,11 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
 import { useMastersStore } from "@/stores/masters";
-import { getCompany, listCompanies } from "@/services/companies";
+import { listCompanyOptions } from "@/services/companies";
+import { useCompaniesStore } from "@/stores/companies";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
+
+const companyStore = useCompaniesStore;
 
 const schema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -52,14 +55,7 @@ export default function JobForm({
     defaultValues: defaultValues || {},
   });
 
-  const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
-
-  const [locationOptions, setLocationOptions] = useState([]);
-  const [skillOptions, setSkillOptions] = useState([]);
-  const [educationOptions, setEducationOptions] = useState([]);
-  const [degreeOptions, setDegreeOptions] = useState([]);
-  const [jobCategoryOptions, setJobCategoryOptions] = useState([]);
 
   const formatOptionLabel = useCallback((value, options) => {
     return (
@@ -80,34 +76,16 @@ export default function JobForm({
   const selectedLocation = watch("location_area_id");
   const selectedContact = watch("contact_person");
 
+  // Use masters directly from store - they're preloaded in client-layout
+  const locationOptions = getOptions("location");
+  const skillOptions = getOptions("skill");
+  const educationOptions = getOptions("education");
+  const degreeOptions = getOptions("degree");
+  const jobCategoryOptions = getOptions("job_category");
+
   useEffect(() => {
     register("job_categories");
-    let active = true;
-
-    async function loadData() {
-      try {
-        await loadMaster("location");
-        if (!active) return;
-        setLocationOptions(getOptions("location"));
-        await loadMaster("skill");
-        await loadMaster("education");
-        await loadMaster("degree");
-        await loadMaster("job_category");
-        if (!active) return;
-        setSkillOptions(getOptions("skill"));
-        setEducationOptions(getOptions("education"));
-        setDegreeOptions(getOptions("degree"));
-        setJobCategoryOptions(getOptions("job_category"));
-      } catch {
-        // keep form usable even if masters fail
-      }
-    }
-
-    loadData();
-    return () => {
-      active = false;
-    };
-  }, [loadMaster, getOptions]);
+  }, [register]);
 
   function addSkillFromInput() {
     const value = skillInput.trim();
@@ -204,21 +182,17 @@ export default function JobForm({
     async function applyCompanyDefaults() {
       if (!selectedCompanyId) return;
       try {
-        const company = await getCompany(selectedCompanyId);
+        // Check store cache first
+        const store = companyStore.getState();
+        let company = store.byId[selectedCompanyId];
+        if (!company) {
+          // Fetch if not in cache
+          const getCompany = store.get;
+          company = await getCompany(selectedCompanyId);
+        }
         if (!active || !company) return;
         if (!selectedLocation && company.location_area_id) {
           setValue("location_area_id", String(company.location_area_id), { shouldValidate: true });
-          // ensure the location option exists in the dropdown
-          const exists = locationOptions.some((opt) => String(opt.value) === String(company.location_area_id));
-          if (!exists) {
-            setLocationOptions((opts) => [
-              ...opts,
-              {
-                value: String(company.location_area_id),
-                label: company.location_area_name || company.location || `Location #${company.location_area_id}`,
-              },
-            ]);
-          }
         }
         if (!selectedContact && company.contact_person) {
           setValue("contact_person", company.contact_person, { shouldValidate: true });
@@ -231,21 +205,44 @@ export default function JobForm({
     return () => {
       active = false;
     };
-  }, [selectedCompanyId, selectedLocation, selectedContact, setValue, locationOptions]);
+  }, [selectedCompanyId, selectedLocation, selectedContact, setValue]);
 
-  async function loadCompanyOptions({ query, limit }) {
-    const result = await listCompanies({ page: 1, limit: limit || 20, q: query || "" });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
-  }
+  const loadCompanyOptions = useCallback(async ({ query, limit }) => {
+    // Use lightweight /options endpoint
+    const items = await listCompanyOptions({ q: query || "", limit: limit || 20 });
+    
+    // Populate store cache with returned items (they only have id and name, but we can still cache)
+    if (items.length > 0) {
+      const store = companyStore.getState();
+      const nextById = { ...store.byId };
+      items.forEach((item) => {
+        if (item?.id && !nextById[item.id]) {
+          // Only add if not already cached (we don't want to overwrite full data with minimal data)
+          nextById[item.id] = { id: item.id, name: item.name };
+        }
+      });
+      companyStore.setState({ byId: nextById });
+    }
+    
+    return items;
+  }, []);
 
-  async function resolveCompanyLabel({ value }) {
+  const resolveCompanyLabel = useCallback(async ({ value }) => {
+    if (!value) return "";
+    
+    // Check store cache first
+    const store = companyStore.getState();
+    const cached = store.byId[value];
+    if (cached) {
+      return cached.name || cached.title || cached.company_name || `Company #${value}`;
+    }
+    
+    // Only make API call if not in cache (get will also cache it)
+    const getCompany = companyStore.getState().get;
     const company = await getCompany(value);
     if (!company) return "";
     return company.name || company.title || company.company_name || `Company #${value}`;
-  }
+  }, []);
 
   return (
     <form
@@ -264,9 +261,9 @@ export default function JobForm({
               disabled={disableCompanyField}
               placeholder="Select company"
               searchPlaceholder="Search companies..."
-              loadOptions={loadCompanyOptions}
-              getOptionValue={(c) => c.id}
-              getOptionLabel={(c) => c.name || c.title || c.company_name || `Company #${c.id}`}
+                loadOptions={loadCompanyOptions}
+                getOptionValue={(c) => c.id}
+                getOptionLabel={(c) => c.name || `Company #${c.id}`}
               resolveSelectedLabel={resolveCompanyLabel}
               allowClear={!disableCompanyField}
             />

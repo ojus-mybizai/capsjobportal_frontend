@@ -111,17 +111,11 @@ function CompaniesPageInner() {
 
   const viaLinkChecked = createdByIsNullParam === "true";
 
-  const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
 
   useEffect(() => {
     setPageMetadata("Companies", "Manage hiring companies");
   }, [setPageMetadata]);
-
-  useEffect(() => {
-    loadMaster("company_category").catch(() => {});
-    loadMaster("location").catch(() => {});
-  }, [loadMaster]);
 
   useEffect(() => {
     setQuery(qParam);

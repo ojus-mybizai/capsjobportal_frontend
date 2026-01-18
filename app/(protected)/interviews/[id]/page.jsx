@@ -17,6 +17,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import { getCandidateLabel, getCompanyLabel, getJobLabel } from "@/utils/entityLabels";
+import {
+  getPlacementIncome,
+  createPlacementIncome,
+  updatePlacementIncome,
+  listPlacementIncomes,
+} from "@/services/placementIncomes";
 
  const InterviewStatusUpdateSchema = z
   .object({
@@ -35,15 +41,6 @@ import { getCandidateLabel, getCompanyLabel, getJobLabel } from "@/utils/entityL
         return Number.isNaN(n) ? undefined : n;
       }, z.number().int().positive().optional())
       .optional(),
-    total_receivable: z
-      .preprocess((value) => {
-        if (value === "" || value === undefined || value === null) return undefined;
-        const n = Number(value);
-        return Number.isNaN(n) ? undefined : n;
-      }, z.number().int().positive().optional())
-      .optional(),
-    due_date: z.string().optional(),
-    remarks: z.string().optional(),
   })
   .superRefine((val, ctx) => {
     if (val.status === "JOINED") {
@@ -59,20 +56,6 @@ import { getCandidateLabel, getCompanyLabel, getJobLabel } from "@/utils/entityL
           code: z.ZodIssueCode.custom,
           path: ["salary"],
           message: "Salary is required when status is JOINED",
-        });
-      }
-      if (!val.total_receivable) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["total_receivable"],
-          message: "Total receivable is required when status is JOINED",
-        });
-      }
-      if (!val.due_date) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["due_date"],
-          message: "Due date is required when status is JOINED",
         });
       }
     }
@@ -100,6 +83,13 @@ export default function InterviewDetailPage() {
   const [submittingRemarks, setSubmittingRemarks] = useState(false);
   const [submittingStatus, setSubmittingStatus] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [placementIncome, setPlacementIncome] = useState(null);
+  const [loadingPlacementIncome, setLoadingPlacementIncome] = useState(false);
+  const [placementIncomeModalOpen, setPlacementIncomeModalOpen] = useState(false);
+  const [savingPlacementIncome, setSavingPlacementIncome] = useState(false);
+  const [placementIncomeTotalReceivable, setPlacementIncomeTotalReceivable] = useState("");
+  const [placementIncomeDueDate, setPlacementIncomeDueDate] = useState("");
+  const [placementIncomeRemarks, setPlacementIncomeRemarks] = useState("");
 
   const listInterviews = useInterviewsStore((state) => state.list);
   const listParams = useInterviewsStore((state) => state.listParams || {});
@@ -130,6 +120,31 @@ export default function InterviewDetailPage() {
         setCompanyLabel(nextCompanyLabel);
         setJobLabel(nextJobLabel);
         setCandidateLabel(nextCandidateLabel);
+
+        // Load placement income if exists
+        if (data?.placement_income_id) {
+          try {
+            const income = await getPlacementIncome(data.placement_income_id);
+            if (!active) return;
+            setPlacementIncome(income);
+          } catch {
+            // Placement income may not exist, ignore
+          }
+        } else {
+          // Check if placement income exists for this interview
+          try {
+            const result = await listPlacementIncomes({
+              interview_id: id,
+              limit: 1,
+            });
+            if (!active) return;
+            if (result?.items && result.items.length > 0) {
+              setPlacementIncome(result.items[0]);
+            }
+          } catch {
+            // Ignore errors
+          }
+        }
       } catch (error) {
         if (!active) return;
         pushToast({
@@ -166,9 +181,6 @@ export default function InterviewDetailPage() {
       status: interview?.status || "SCHEDULED",
       doj: "",
       salary: "",
-      total_receivable: "",
-      due_date: "",
-      remarks: "",
     },
   });
 
@@ -178,9 +190,6 @@ export default function InterviewDetailPage() {
       status: interview.status || "SCHEDULED",
       doj: "",
       salary: "",
-      total_receivable: "",
-      due_date: "",
-      remarks: interview.remarks || "",
     });
     setRemarksDraft(interview.remarks || "");
   }, [interview, reset]);
@@ -226,16 +235,6 @@ export default function InterviewDetailPage() {
         if (values.salary) {
           payload.salary = Number(values.salary);
         }
-
-        if (values.total_receivable) {
-          payload.placement_total_receivable = Number(values.total_receivable);
-        }
-        if (values.due_date) {
-          payload.placement_due_date = `${values.due_date}T00:00:00Z`;
-        }
-      }
-      if (values.remarks) {
-        payload.placement_remarks = String(values.remarks);
       }
 
       const updated = await updateStatus(id, payload);
@@ -303,6 +302,62 @@ export default function InterviewDetailPage() {
       }
     } finally {
       setSubmittingStatus(false);
+    }
+  }
+
+  async function handlePlacementIncomeSave() {
+    if (!interview) return;
+    setSavingPlacementIncome(true);
+    try {
+      const totalReceivable = Number(placementIncomeTotalReceivable);
+      if (!Number.isFinite(totalReceivable) || totalReceivable <= 0) {
+        throw new Error("Total receivable must be greater than 0");
+      }
+
+      const dueDate = placementIncomeDueDate
+        ? new Date(`${placementIncomeDueDate}T00:00:00Z`).toISOString()
+        : null;
+      if (!dueDate) {
+        throw new Error("Due date is required");
+      }
+
+      const payload = {
+        interview_id: interview.id,
+        candidate_id: interview.candidate_id,
+        job_id: interview.job_id,
+        total_receivable: totalReceivable,
+        due_date: dueDate,
+        remarks: placementIncomeRemarks || undefined,
+      };
+
+      if (placementIncome) {
+        const updated = await updatePlacementIncome(placementIncome.id, payload);
+        setPlacementIncome(updated);
+        pushToast({
+          title: "Placement income updated",
+          description: "Placement income has been updated successfully.",
+        });
+      } else {
+        const created = await createPlacementIncome(payload);
+        setPlacementIncome(created);
+        // Update interview to include placement_income_id
+        const updatedInterview = await getInterview(id, { force: true });
+        setInterview(updatedInterview);
+        pushToast({
+          title: "Placement income created",
+          description: "Placement income has been created successfully.",
+        });
+      }
+
+      setPlacementIncomeModalOpen(false);
+    } catch (error) {
+      pushToast({
+        title: "Failed to save placement income",
+        description:
+          (error && error.message) || "An error occurred while saving placement income.",
+      });
+    } finally {
+      setSavingPlacementIncome(false);
     }
   }
 
@@ -420,6 +475,71 @@ export default function InterviewDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Placement Income Section */}
+          {interview.status === "JOINED" && (
+            <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-slate-600">Placement Income</div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    if (placementIncome) {
+                      setPlacementIncomeTotalReceivable(String(placementIncome.total_receivable || ""));
+                      setPlacementIncomeDueDate(
+                        placementIncome.due_date
+                          ? dayjs(placementIncome.due_date).format("YYYY-MM-DD")
+                          : ""
+                      );
+                      setPlacementIncomeRemarks(placementIncome.remarks || "");
+                    } else {
+                      setPlacementIncomeTotalReceivable("");
+                      setPlacementIncomeDueDate("");
+                      setPlacementIncomeRemarks("");
+                    }
+                    setPlacementIncomeModalOpen(true);
+                  }}
+                >
+                  {placementIncome ? "Edit" : "Create"}
+                </Button>
+              </div>
+              {placementIncome ? (
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <div>
+                    <div className="text-[11px] text-slate-500">Total receivable</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">
+                      ₹{placementIncome.total_receivable?.toLocaleString("en-IN") || "0"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-slate-500">Balance</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">
+                      ₹{placementIncome.balance?.toLocaleString("en-IN") || "0"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-slate-500">Due date</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">
+                      {placementIncome.due_date
+                        ? dayjs(placementIncome.due_date).format("YYYY-MM-DD")
+                        : "Not set"}
+                    </div>
+                  </div>
+                  {placementIncome.remarks && (
+                    <div className="md:col-span-3">
+                      <div className="text-[11px] text-slate-500">Remarks</div>
+                      <div className="mt-1 text-sm text-slate-900">{placementIncome.remarks}</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] text-slate-500">
+                  No placement income created yet. Click "Create" to add one.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </DetailShell>
 
@@ -431,10 +551,9 @@ export default function InterviewDetailPage() {
       >
         <form onSubmit={handleSubmit(handleStatusSubmit)} className="space-y-3 text-xs">
           <p className="text-[11px] text-slate-600">
-            Update the interview status and remarks. When marking as{" "}
-            <span className="font-semibold">joined</span>, you must provide date of joining, salary,
-            and receivable details. This may consume a job vacancy and add the candidate to the
-            joined list.
+            Update the interview status. When marking as{" "}
+            <span className="font-semibold">joined</span>, you must provide date of joining and salary.
+            This may consume a job vacancy and add the candidate to the joined list.
           </p>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -482,41 +601,6 @@ export default function InterviewDetailPage() {
             )}
           </div>
 
-          {statusValue === "JOINED" && (
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="space-y-1">
-                <label className="block text-[11px] font-medium text-slate-700">
-                  Total receivable
-                </label>
-                <Input type="number" min="0" step="1" {...register("total_receivable")} />
-                {errors.total_receivable && (
-                  <p className="mt-1 text-[11px] text-[var(--danger)]">
-                    {errors.total_receivable.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[11px] font-medium text-slate-700">Due date</label>
-                <Input type="date" {...register("due_date")} />
-                {errors.due_date && (
-                  <p className="mt-1 text-[11px] text-[var(--danger)]">
-                    {errors.due_date.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[11px] font-medium text-slate-700">Remarks</label>
-                <Input type="text" placeholder="Placement fee notes" {...register("remarks")} />
-                {errors.remarks && (
-                  <p className="mt-1 text-[11px] text-[var(--danger)]">
-                    {errors.remarks.message}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
 
           {statusValue === "JOINED" && (
             <div className="rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/5 px-3 py-2 text-[11px] text-[var(--danger)]">
@@ -539,6 +623,69 @@ export default function InterviewDetailPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Placement Income Modal */}
+      <Modal
+        open={placementIncomeModalOpen}
+        onClose={() => setPlacementIncomeModalOpen(false)}
+        title={placementIncome ? "Edit placement income" : "Create placement income"}
+        size="md"
+      >
+        <div className="space-y-3 text-xs">
+          <p className="text-[11px] text-slate-600">
+            {placementIncome
+              ? "Update placement income details for this interview."
+              : "Create a placement income record for this interview."}
+          </p>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] font-medium text-slate-700">
+              Total receivable *
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={placementIncomeTotalReceivable}
+              onChange={(e) => setPlacementIncomeTotalReceivable(e.target.value)}
+              placeholder="Enter total receivable amount"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] font-medium text-slate-700">Due date *</label>
+            <Input
+              type="date"
+              value={placementIncomeDueDate}
+              onChange={(e) => setPlacementIncomeDueDate(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[11px] font-medium text-slate-700">Remarks</label>
+            <Input
+              type="text"
+              value={placementIncomeRemarks}
+              onChange={(e) => setPlacementIncomeRemarks(e.target.value)}
+              placeholder="Optional remarks"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setPlacementIncomeModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" size="sm" disabled={savingPlacementIncome} onClick={handlePlacementIncomeSave}>
+              {savingPlacementIncome ? "Saving..." : placementIncome ? "Update" : "Create"}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </>
   );

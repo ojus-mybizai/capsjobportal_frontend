@@ -7,6 +7,42 @@ import {
   ensureArrayData,
 } from "./formatters";
 
+export function listJobOptions(params = {}) {
+  if (USE_MOCK_DATA) {
+    const q = String(params.q || params.search || params.query || "").trim().toLowerCase();
+    const companyId = params.company_id != null ? String(params.company_id) : "";
+    const limit = Number(params.limit) || 20;
+    const filtered = (Array.isArray(mockJobs) ? mockJobs : []).filter((j) => {
+      if (companyId) {
+        const jCompanyId = j && j.company_id != null ? String(j.company_id) : "";
+        if (jCompanyId && jCompanyId !== companyId) return false;
+      }
+      if (q) {
+        const title = (j && (j.title || j.name)) || "";
+        return String(title).toLowerCase().includes(q);
+      }
+      return true;
+    });
+    const items = filtered.slice(0, limit).map((j) => ({
+      id: j.id,
+      name: j.title || j.name || `Job #${j.id}`,
+    }));
+    return Promise.resolve(items);
+  }
+
+  return api
+    .get("jobs/options", {
+      params: { q: params.q, company_id: params.company_id, limit: params.limit || 20 },
+    })
+    .then((payload) => {
+      if (payload?.data?.data) return payload.data.data;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    })
+    .catch(() => []);
+}
+
 export function listJobs(params = {}) {
   if (USE_MOCK_DATA) {
     const page = Number(params.page) || 1;

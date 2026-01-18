@@ -32,7 +32,6 @@ function JobsPageInner() {
 
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
-  const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
 
   const [rows, setRows] = useState([]);
@@ -266,31 +265,10 @@ function JobsPageInner() {
   }
 
   useEffect(() => {
-    let active = true;
-
-    async function loadLookups() {
-      try {
-        // Locations
-        await loadMaster("location");
-        if (!active) return;
-        const locOptions = getOptions("location_area");
-        setLocationOptions(locOptions);
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load lookup data",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading companies or locations.",
-        });
-      }
-    }
-
-    loadLookups();
-    return () => {
-      active = false;
-    };
-  }, [loadMaster, getOptions, pushToast]);
+    // Use masters directly from store - they're preloaded in client-layout
+    const locOptions = getOptions("location");
+    setLocationOptions(locOptions);
+  }, [getOptions]);
 
   useEffect(() => {
     let active = true;

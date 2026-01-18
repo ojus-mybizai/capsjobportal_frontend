@@ -7,7 +7,6 @@ import { useUIStore } from "@/stores/ui";
 import { useCandidatesStore } from "@/stores/candidates";
 import CandidateForm from "@/components/forms/CandidateForm";
 import {
-  getCandidate,
   updateCandidate,
   uploadCandidateFile,
   changeCandidateStatus,
@@ -26,6 +25,8 @@ export default function CandidateDetailPage() {
   const router = useRouter();
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
+  const getCandidate = useCandidatesStore((state) => state.get);
+  const updateCandidateInStore = useCandidatesStore((state) => state.update);
 
   const [tab, setTab] = useState("overview");
 
@@ -327,7 +328,7 @@ export default function CandidateDetailPage() {
 
       console.log(payload)
 
-      const updated = await updateCandidate(id, payload);
+      const updated = await updateCandidateInStore(id, payload);
       setCandidate(updated);
 
       pushToast({
@@ -506,12 +507,9 @@ export default function CandidateDetailPage() {
       setResumeFile(null);
       setPhotoFile(null);
 
-      try {
-        const refreshed = await getCandidate(id);
-        setCandidate(refreshed);
-      } catch {
-        // ignore refresh errors
-      }
+      // Refresh from store (already updated by upload)
+      const refreshed = await getCandidate(id, { force: true });
+      setCandidate(refreshed);
     } catch (error) {
       pushToast({
         title: "Failed to upload documents",
@@ -571,12 +569,9 @@ export default function CandidateDetailPage() {
       }
 
       await listPayments(id, { limit: 100 });
-      try {
-        const refreshed = await getCandidate(id);
-        setCandidate(refreshed);
-      } catch {
-        // ignore refresh errors
-      }
+      // Refresh from store (already updated by upload)
+      const refreshed = await getCandidate(id, { force: true });
+      setCandidate(refreshed);
 
       pushToast({
         title: "Registration payment saved",
@@ -599,12 +594,9 @@ export default function CandidateDetailPage() {
     try {
       await deletePayment(registrationPayment.id);
       await listPayments(id, { limit: 100 });
-      try {
-        const refreshed = await getCandidate(id);
-        setCandidate(refreshed);
-      } catch {
-        // ignore refresh errors
-      }
+      // Refresh from store (already updated by upload)
+      const refreshed = await getCandidate(id, { force: true });
+      setCandidate(refreshed);
       pushToast({
         title: "Payment deleted",
         description: "The registration payment was deleted successfully.",
@@ -672,12 +664,9 @@ export default function CandidateDetailPage() {
       setNewPaymentRemarks("");
 
       await listPayments(id, { limit: 100 });
-      try {
-        const refreshed = await getCandidate(id);
-        setCandidate(refreshed);
-      } catch {
-        // ignore refresh errors
-      }
+      // Refresh from store (already updated by upload)
+      const refreshed = await getCandidate(id, { force: true });
+      setCandidate(refreshed);
 
       pushToast({
         title: "Payment added",
@@ -699,12 +688,9 @@ export default function CandidateDetailPage() {
     try {
       await deletePayment(paymentId);
       await listPayments(id, { limit: 100 });
-      try {
-        const refreshed = await getCandidate(id);
-        setCandidate(refreshed);
-      } catch {
-        // ignore refresh errors
-      }
+      // Refresh from store (already updated by upload)
+      const refreshed = await getCandidate(id, { force: true });
+      setCandidate(refreshed);
       pushToast({
         title: "Payment deleted",
         description: "The candidate payment was deleted successfully.",

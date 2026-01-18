@@ -49,3 +49,4 @@ export function paymentsLedger(params = {}) {
     })
     .then((payload) => ensureObjectData(payload, "Failed to load payments ledger"));
 }
+

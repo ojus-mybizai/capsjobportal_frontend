@@ -7,6 +7,39 @@ import {
   ensureArrayData,
 } from "./formatters";
 
+export function listCandidateOptions(params = {}) {
+  if (USE_MOCK_DATA) {
+    const q = String(params.q || params.search || params.query || "").trim().toLowerCase();
+    const limit = Number(params.limit) || 20;
+    const filtered = (Array.isArray(mockCandidates) ? mockCandidates : []).filter((c) => {
+      if (q) {
+        const name = (c && (c.full_name || c.name || c.candidate_name)) || "";
+        const email = (c && c.email) || "";
+        return (
+          String(name).toLowerCase().includes(q) ||
+          String(email).toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+    const items = filtered.slice(0, limit).map((c) => ({
+      id: c.id,
+      name: c.full_name || c.name || c.candidate_name || `Candidate #${c.id}`,
+    }));
+    return Promise.resolve(items);
+  }
+
+  return api
+    .get("candidates/options", { params: { q: params.q, limit: params.limit || 20 } })
+    .then((payload) => {
+      if (payload?.data?.data) return payload.data.data;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    })
+    .catch(() => []);
+}
+
 export function listCandidates(params = {}) {
   if (USE_MOCK_DATA) {
     const page = Number(params.page) || 1;

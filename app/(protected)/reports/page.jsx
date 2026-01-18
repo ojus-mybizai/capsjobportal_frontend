@@ -5,9 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useUIStore } from "@/stores/ui";
-import { listJobs, getJob, listJobRelatedCandidates } from "@/services/jobs";
-import { listCandidates, getCandidate, listCandidateRelatedJobs } from "@/services/candidates";
-import { listCompanies, getCompany } from "@/services/companies";
+import { listJobs, getJob, listJobRelatedCandidates, listJobOptions } from "@/services/jobs";
+import { listCandidates, getCandidate, listCandidateRelatedJobs, listCandidateOptions } from "@/services/candidates";
+import { listCompanies, getCompany, listCompanyOptions } from "@/services/companies";
 import {
   interviewCandidateJobsReport,
   interviewJobCandidatesReport,
@@ -106,21 +106,8 @@ function ReportsPageInner() {
   }
 
   async function loadCompanyOptions({ query, limit }) {
-    const result = await listCompanies({
-      page: 1,
-      limit: limit || 20,
-      q: (query || "").trim() || undefined,
-    });
-
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
-      : [];
-
-    return items;
+    // Use lightweight /options endpoint for dropdown
+    return await listCompanyOptions({ q: (query || "").trim(), limit: limit || 20 });
   }
 
   function getCompanyOptionLabel(item) {
@@ -143,22 +130,12 @@ function ReportsPageInner() {
 
   async function loadJobOptions({ query, limit }) {
     if (!companyValue) return [];
-    const result = await listJobs({
-      page: 1,
-      limit: limit || 20,
-      q: (query || "").trim() || undefined,
+    // Use lightweight /options endpoint for dropdown
+    return await listJobOptions({
+      q: (query || "").trim(),
       company_id: companyValue || undefined,
+      limit: limit || 20,
     });
-
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
-      : [];
-
-    return items;
   }
 
   async function resolveJobLabel({ value }) {
@@ -194,21 +171,8 @@ function ReportsPageInner() {
   }
 
   async function loadCandidateOptions({ query, limit }) {
-    const result = await listCandidates({
-      page: 1,
-      limit: limit || 20,
-      q: (query || "").trim() || undefined,
-    });
-
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
-      : [];
-
-    return items;
+    // Use lightweight /options endpoint for dropdown
+    return await listCandidateOptions({ q: (query || "").trim(), limit: limit || 20 });
   }
 
   async function resolveCandidateLabel({ value }) {
@@ -466,8 +430,8 @@ function ReportsPageInner() {
                 searchPlaceholder="Search companies..."
                 loadOptions={loadCompanyOptions}
                 resolveSelectedLabel={resolveCompanyLabel}
-                getOptionLabel={getCompanyOptionLabel}
-                getOptionValue={getCompanyOptionValue}
+                getOptionLabel={(c) => c.name || getCompanyOptionLabel(c)}
+                getOptionValue={(c) => c.id || getCompanyOptionValue(c)}
                 allowClear
               />
             </div>
@@ -493,8 +457,8 @@ function ReportsPageInner() {
                 searchPlaceholder="Search jobs..."
                 loadOptions={loadJobOptions}
                 resolveSelectedLabel={resolveJobLabel}
-                getOptionLabel={getJobOptionLabel}
-                getOptionValue={getJobOptionValue}
+                getOptionLabel={(j) => j.name || getJobOptionLabel(j)}
+                getOptionValue={(j) => j.id || getJobOptionValue(j)}
                 allowClear
                 disabled={!companyValue}
               />

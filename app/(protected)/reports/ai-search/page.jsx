@@ -7,9 +7,9 @@ import { useUIStore } from "@/stores/ui";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
 import Table from "@/components/table/Table";
 import Button from "@/components/ui/Button";
-import { listJobs, getJob, listJobRelatedCandidates } from "@/services/jobs";
-import { listCandidates, getCandidate, listCandidateRelatedJobs } from "@/services/candidates";
-import { listCompanies } from "@/services/companies";
+import { listJobs, getJob, listJobRelatedCandidates, listJobOptions } from "@/services/jobs";
+import { listCandidates, getCandidate, listCandidateRelatedJobs, listCandidateOptions } from "@/services/candidates";
+import { listCompanies, listCompanyOptions } from "@/services/companies";
 import dayjs from "dayjs";
 
 function toArray(payload) {
@@ -198,42 +198,22 @@ function AISearchInner() {
   }
 
   async function loadCompanyOptions({ query, limit }) {
-    const params = { page: 1, limit: limit || 20 };
-    if (query && query.trim()) {
-      params.q = query.trim();
-    }
-    const result = await listCompanies(params);
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : [];
-    return items;
+    // Use lightweight /options endpoint for dropdown
+    return await listCompanyOptions({ q: (query || "").trim(), limit: limit || 20 });
   }
 
   async function loadJobOptions({ query, limit }) {
-    const params = { page: 1, limit: limit || 20 };
-    if (query && query.trim()) {
-      params.q = query.trim();
-    }
-    if (companyId) {
-      params.company_id = companyId;
-    }
-    const result = await listJobs(params);
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : [];
-    return items;
+    // Use lightweight /options endpoint for dropdown
+    return await listJobOptions({
+      q: (query || "").trim(),
+      company_id: companyId || undefined,
+      limit: limit || 20,
+    });
   }
 
   async function loadCandidateOptions({ query, limit }) {
-    const result = await listCandidates({ page: 1, limit: limit || 20, q: (query || "").trim() || undefined });
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
-      : [];
-    return items;
+    // Use lightweight /options endpoint for dropdown
+    return await listCandidateOptions({ q: (query || "").trim(), limit: limit || 20 });
   }
 
   async function resolveJobLabel({ value }) {
@@ -332,7 +312,7 @@ function AISearchInner() {
               searchPlaceholder="Search companies..."
               loadOptions={loadCompanyOptions}
               getOptionLabel={(c) => c?.name || c?.label || ""}
-              getOptionValue={(c) => (c?.id != null ? String(c.id) : c?.value ? String(c.value) : "")}
+              getOptionValue={(c) => String(c?.id || "")}
               allowClear
             />
             <AsyncSearchSelect

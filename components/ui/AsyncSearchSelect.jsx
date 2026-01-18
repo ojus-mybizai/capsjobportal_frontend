@@ -35,6 +35,8 @@ export default function AsyncSearchSelect({
   const debounceRef = useRef(null);
 
   const resolveAbortRef = useRef(null);
+  const resolvedLabelsRef = useRef({});
+  const optionsCacheRef = useRef({});
 
   const currentLabel = useMemo(() => {
     if (selectedLabel) return selectedLabel;
@@ -59,6 +61,14 @@ export default function AsyncSearchSelect({
 
       if (!resolveSelectedLabel) return;
 
+      const valueStr = String(value);
+      
+      // Check cache first
+      if (resolvedLabelsRef.current[valueStr]) {
+        setResolvedLabel(resolvedLabelsRef.current[valueStr]);
+        return;
+      }
+
       if (resolveAbortRef.current) {
         resolveAbortRef.current.abort();
       }
@@ -68,11 +78,14 @@ export default function AsyncSearchSelect({
 
       try {
         const label = await resolveSelectedLabel({
-          value: String(value),
+          value: valueStr,
           signal: controller.signal,
         });
         if (!active || controller.signal.aborted) return;
-        setResolvedLabel(label ? String(label) : "");
+        const labelStr = label ? String(label) : "";
+        // Cache the resolved label
+        resolvedLabelsRef.current[valueStr] = labelStr;
+        setResolvedLabel(labelStr);
       } catch {
         if (!active || controller.signal.aborted) return;
         setResolvedLabel("");
@@ -98,10 +111,22 @@ export default function AsyncSearchSelect({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // Keep options in cache but don't clear them when closed
+      return;
+    }
     if (!loadOptions) return;
 
     setError("");
+
+    const queryStr = (query || "").trim();
+    const cacheKey = `${queryStr}:${limit}`;
+
+    // Check cache first
+    if (optionsCacheRef.current[cacheKey]) {
+      setOptions(optionsCacheRef.current[cacheKey]);
+      return;
+    }
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -119,12 +144,15 @@ export default function AsyncSearchSelect({
       setLoading(true);
       try {
         const result = await loadOptions({
-          query: (query || "").trim(),
+          query: queryStr,
           limit,
           signal: controller.signal,
         });
         if (controller.signal.aborted) return;
-        setOptions(Array.isArray(result) ? result : []);
+        const items = Array.isArray(result) ? result : [];
+        // Cache the results
+        optionsCacheRef.current[cacheKey] = items;
+        setOptions(items);
       } catch (e) {
         if (controller.signal.aborted) return;
         setOptions([]);
@@ -141,6 +169,18 @@ export default function AsyncSearchSelect({
       }
     };
   }, [open, query, loadOptions, debounceMs, limit]);
+
+  // Pre-populate options when value exists and dropdown opens
+  useEffect(() => {
+    if (!open || !value || !loadOptions || options.length > 0) return;
+    
+    // If value exists but no options loaded, try to get it from cache first
+    // Otherwise, load options with empty query to get some initial options
+    const emptyCacheKey = `:${limit}`;
+    if (optionsCacheRef.current[emptyCacheKey]) {
+      setOptions(optionsCacheRef.current[emptyCacheKey]);
+    }
+  }, [open, value, loadOptions, limit, options.length]);
 
   function handleSelect(option) {
     const nextValue = option ? String(getOptionValue(option)) : "";

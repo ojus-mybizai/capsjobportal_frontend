@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,9 +8,12 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
-import { getCompany, listCompanies } from "@/services/companies";
-import { getJob, listJobs } from "@/services/jobs";
-import { getCandidate, listCandidates } from "@/services/candidates";
+import { listCompanyOptions } from "@/services/companies";
+import { listJobOptions } from "@/services/jobs";
+import { listCandidateOptions } from "@/services/candidates";
+import { useCompaniesStore } from "@/stores/companies";
+import { useJobsStore } from "@/stores/jobs";
+import { useCandidatesStore } from "@/stores/candidates";
 
 const STATUS_VALUES = [
   "SCHEDULED",
@@ -105,49 +107,116 @@ export default function InterviewForm({
     ? STATUS_VALUES
     : STATUS_VALUES.filter((value) => value !== "JOINED");
 
-  async function loadCompanyOptions({ query, limit }) {
-    const result = await listCompanies({ page: 1, limit: limit || 20, q: query || "" });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
-  }
+  const loadCompanyOptions = useCallback(async ({ query, limit }) => {
+    // Use lightweight /options endpoint
+    const items = await listCompanyOptions({ q: query || "", limit: limit || 20 });
+    
+    // Populate store cache (only if not already cached to avoid overwriting full data)
+    if (items.length > 0) {
+      const store = useCompaniesStore.getState();
+      const nextById = { ...store.byId };
+      items.forEach((item) => {
+        if (item?.id && !nextById[item.id]) {
+          nextById[item.id] = { id: item.id, name: item.name };
+        }
+      });
+      useCompaniesStore.setState({ byId: nextById });
+    }
+    
+    return items;
+  }, []);
 
-  async function resolveCompanyLabel({ value }) {
-    const company = await getCompany(value);
+  const resolveCompanyLabel = useCallback(async ({ value }) => {
+    if (!value) return "";
+    
+    // Check store cache first
+    const store = useCompaniesStore.getState();
+    const cached = store.byId[value];
+    if (cached) {
+      return cached.name || cached.title || cached.company_name || `Company #${value}`;
+    }
+    
+    // Fallback to API (which will also cache)
+    const company = await store.get(value);
     if (!company) return "";
     return company.name || company.title || company.company_name || `Company #${value}`;
-  }
+  }, []);
 
-  async function loadJobOptions({ query, limit }) {
-    const result = await listJobs({
-      page: 1,
-      limit: limit || 20,
+  const loadJobOptions = useCallback(async ({ query, limit }) => {
+    // Use lightweight /options endpoint
+    const items = await listJobOptions({
       q: query || "",
       company_id: selectedCompanyId || undefined,
+      limit: limit || 20,
     });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
-  }
+    
+    // Populate store cache (only if not already cached)
+    if (items.length > 0) {
+      const store = useJobsStore.getState();
+      const nextById = { ...store.byId };
+      items.forEach((item) => {
+        if (item?.id && !nextById[item.id]) {
+          nextById[item.id] = { id: item.id, name: item.name }; // name = title for jobs
+        }
+      });
+      useJobsStore.setState({ byId: nextById });
+    }
+    
+    return items;
+  }, [selectedCompanyId]);
 
-  async function resolveJobLabel({ value }) {
-    const job = await getJob(value);
+  const resolveJobLabel = useCallback(async ({ value }) => {
+    if (!value) return "";
+    
+    // Check store cache first
+    const store = useJobsStore.getState();
+    const cached = store.byId[value];
+    if (cached) {
+      return cached.title || cached.name || `Job #${value}`;
+    }
+    
+    // Fallback to API (which will also cache)
+    const job = await store.get(value);
     if (!job) return "";
     return job.title || job.name || `Job #${value}`;
-  }
+  }, []);
 
-  async function loadCandidateOptions({ query, limit }) {
-    const result = await listCandidates({ page: 1, limit: limit || 20, q: query || "" });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
-  }
+  const loadCandidateOptions = useCallback(async ({ query, limit }) => {
+    // Use lightweight /options endpoint
+    const items = await listCandidateOptions({ q: query || "", limit: limit || 20 });
+    
+    // Populate store cache (only if not already cached)
+    if (items.length > 0) {
+      const store = useCandidatesStore.getState();
+      const nextById = { ...store.byId };
+      items.forEach((item) => {
+        if (item?.id && !nextById[item.id]) {
+          nextById[item.id] = { id: item.id, full_name: item.name };
+        }
+      });
+      useCandidatesStore.setState({ byId: nextById });
+    }
+    
+    return items;
+  }, []);
 
-  async function resolveCandidateLabel({ value }) {
-    const candidate = await getCandidate(value);
+  const resolveCandidateLabel = useCallback(async ({ value }) => {
+    if (!value) return "";
+    
+    // Check store cache first
+    const store = useCandidatesStore.getState();
+    const cached = store.byId[value];
+    if (cached) {
+      return (
+        cached.full_name ||
+        cached.name ||
+        cached.candidate_name ||
+        `Candidate #${value}`
+      );
+    }
+    
+    // Fallback to API (which will also cache)
+    const candidate = await store.get(value);
     if (!candidate) return "";
     return (
       candidate.full_name ||
@@ -155,7 +224,7 @@ export default function InterviewForm({
       candidate.candidate_name ||
       `Candidate #${value}`
     );
-  }
+  }, []);
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-3 text-sm">
@@ -174,7 +243,7 @@ export default function InterviewForm({
                 searchPlaceholder="Search companies..."
                 loadOptions={loadCompanyOptions}
                 getOptionValue={(c) => c.id}
-                getOptionLabel={(c) => getCompanyLabel(c)}
+                getOptionLabel={(c) => c.name || getCompanyLabel(c)}
                 resolveSelectedLabel={resolveCompanyLabel}
                 allowClear={!disableCompanyField}
               />
@@ -200,7 +269,7 @@ export default function InterviewForm({
                 searchPlaceholder="Search jobs..."
                 loadOptions={loadJobOptions}
                 getOptionValue={(j) => j.id}
-                getOptionLabel={(j) => getJobLabel(j)}
+                getOptionLabel={(j) => j.name || getJobLabel(j)}
                 resolveSelectedLabel={resolveJobLabel}
                 allowClear={!(disableJobField || !selectedCompanyId)}
               />
@@ -224,7 +293,7 @@ export default function InterviewForm({
                 searchPlaceholder="Search candidates..."
                 loadOptions={loadCandidateOptions}
                 getOptionValue={(c) => c.id}
-                getOptionLabel={(c) => getCandidateLabel(c)}
+                getOptionLabel={(c) => c.name || getCandidateLabel(c)}
                 resolveSelectedLabel={resolveCandidateLabel}
                 allowClear={!disableCandidateField}
               />

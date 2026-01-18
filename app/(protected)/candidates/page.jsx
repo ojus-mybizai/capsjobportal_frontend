@@ -29,7 +29,6 @@ function CandidatesPageInner() {
 
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
-  const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
 
   const [rows, setRows] = useState([]);
@@ -404,37 +403,17 @@ function CandidatesPageInner() {
   }
 
   useEffect(() => {
-    let active = true;
-
-    async function loadLookups() {
-      try {
-        await loadMaster("location");
-        if (!active) return;
-        const locOptions = getOptions("location");
-        setLocationOptions(locOptions);
-        const locMap = {};
-        locOptions.forEach((opt) => {
-          if (opt && opt.value != null) {
-            locMap[String(opt.value)] = opt.label;
-          }
-        });
-        setLocationMap(locMap);
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load locations",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading locations.",
-        });
+    // Use masters directly from store - they're preloaded in client-layout
+    const locOptions = getOptions("location");
+    setLocationOptions(locOptions);
+    const locMap = {};
+    locOptions.forEach((opt) => {
+      if (opt && opt.value != null) {
+        locMap[String(opt.value)] = opt.label;
       }
-    }
-
-    loadLookups();
-    return () => {
-      active = false;
-    };
-  }, [loadMaster, getOptions, pushToast]);
+    });
+    setLocationMap(locMap);
+  }, [getOptions]);
 
   useEffect(() => {
     let active = true;

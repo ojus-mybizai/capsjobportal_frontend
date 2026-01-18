@@ -2,6 +2,35 @@ import { api } from "./api";
 import { USE_MOCK_DATA, mockCompanies } from "./mockData";
 import { stripEmpty, ensurePagedResult, ensureObjectData } from "./formatters";
 
+export function listCompanyOptions(params = {}) {
+  if (USE_MOCK_DATA) {
+    const q = String(params.q || params.search || params.query || "").trim().toLowerCase();
+    const limit = Number(params.limit) || 20;
+    const filtered = (Array.isArray(mockCompanies) ? mockCompanies : []).filter((c) => {
+      if (q) {
+        const name = (c && (c.name || c.title || c.company_name)) || "";
+        return String(name).toLowerCase().includes(q);
+      }
+      return true;
+    });
+    const items = filtered.slice(0, limit).map((c) => ({
+      id: c.id,
+      name: c.name || c.title || c.company_name || `Company #${c.id}`,
+    }));
+    return Promise.resolve(items);
+  }
+
+  return api
+    .get("companies/options", { params: { q: params.q, limit: params.limit || 20 } })
+    .then((payload) => {
+      if (payload?.data?.data) return payload.data.data;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    })
+    .catch(() => []);
+}
+
 export function listCompanies(params = {}) {
   function parseBoolean(value) {
     if (typeof value === "boolean") return value;
@@ -177,7 +206,7 @@ export function updateCompanyPayment(paymentId, payload) {
   }
 
   return api
-    .put(`company-payments/${paymentId}`, body)
+    .put(`payments/${paymentId}`, body)
     .then((result) => ensureObjectData(result, "Failed to update company payment"));
 }
 
@@ -186,5 +215,5 @@ export function deleteCompanyPayment(paymentId) {
     return Promise.resolve({ id: paymentId });
   }
 
-  return api.delete(`company-payments/${paymentId}`);
+  return api.delete(`payments/${paymentId}`);
 }

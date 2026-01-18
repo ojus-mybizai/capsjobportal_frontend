@@ -6,20 +6,21 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useUIStore } from "@/stores/ui";
 import { paymentsLedger } from "@/services/payments";
-import { listCompanies, getCompany } from "@/services/companies";
-import { listJobs, getJob } from "@/services/jobs";
-import { listCandidates, getCandidate } from "@/services/candidates";
-import { createCompanyPayment, updateCompanyPayment, deleteCompanyPayment } from "@/services/companies";
-import { createCandidatePayment, updateCandidatePayment, deleteCandidatePayment } from "@/services/candidates";
+import { listCompanies, getCompany, listCompanyOptions } from "@/services/companies";
+import { listJobs, getJob, listJobOptions } from "@/services/jobs";
+import { listCandidates, getCandidate, listCandidateOptions } from "@/services/candidates";
+import { createCompanyPayment } from "@/services/companies";
+import { createCandidatePayment } from "@/services/candidates";
 import { listInterviews, getInterview } from "@/services/interviews";
 import {
   createPlacementIncome,
   createPlacementIncomePayment,
   getPlacementIncome,
   listPlacementIncomes,
-  updatePlacementIncomePayment,
-  deletePlacementIncomePayment,
 } from "@/services/placementIncomes";
+import { updateCompanyPayment, deleteCompanyPayment } from "@/services/companies";
+import { updateCandidatePayment, deleteCandidatePayment } from "@/services/candidates";
+import { updatePlacementIncomePayment, deletePlacementIncomePayment } from "@/services/placementIncomes";
 import PaginatedTable from "@/components/table/PaginatedTable";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
 import Button from "@/components/ui/Button";
@@ -264,6 +265,19 @@ function PaymentsPageInner() {
   }
 
   function openEditPayment(payment) {
+    // Clear all form fields first to prevent stale state from previous modal usage
+    setCompanyPaymentCompanyId("");
+    setCompanyPaymentAmount("");
+    setCompanyPaymentDate("");
+    setCandidatePaymentCandidateId("");
+    setCandidatePaymentAmount("");
+    setCandidatePaymentDate("");
+    setCandidatePaymentRemarks("");
+    setIncomePaymentIncomeId("");
+    setIncomePaymentAmount("");
+    setIncomePaymentPaidDate("");
+    setIncomePaymentRemarks("");
+
     setEditingPayment(payment);
     setEditModalOpen(true);
     setSavingPayment(false);
@@ -274,18 +288,31 @@ function PaymentsPageInner() {
       setAddType("COMPANY_PAYMENT");
       setCompanyPaymentCompanyId(payment?.company_id || "");
       setCompanyPaymentAmount(String(payment?.amount || ""));
-      setCompanyPaymentDate(payment?.payment_date || "");
+      // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
+      const companyDate = payment?.payment_date 
+        ? dayjs(payment.payment_date).format("YYYY-MM-DDTHH:mm")
+        : "";
+      setCompanyPaymentDate(companyDate);
     } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
       setAddType("CANDIDATE_PAYMENT");
       setCandidatePaymentCandidateId(payment?.candidate_id || "");
       setCandidatePaymentAmount(String(payment?.amount || ""));
-      setCandidatePaymentDate(payment?.payment_date || "");
+      // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
+      const candidateDate = payment?.payment_date
+        ? dayjs(payment.payment_date).format("YYYY-MM-DDTHH:mm")
+        : "";
+      setCandidatePaymentDate(candidateDate);
       setCandidatePaymentRemarks(payment?.remarks || "");
     } else if (source === "PLACEMENT_INCOME_PAYMENT") {
       setAddType("PLACEMENT_INCOME_PAYMENT");
-      setIncomePaymentIncomeId(payment?.placement_income_id || "");
+      const incomeId = payment?.placement_income_id ? String(payment.placement_income_id) : "";
+      setIncomePaymentIncomeId(incomeId);
       setIncomePaymentAmount(String(payment?.amount || ""));
-      setIncomePaymentPaidDate(payment?.paid_date || payment?.payment_date || "");
+      // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
+      const paidDate = payment?.paid_date || payment?.payment_date
+        ? dayjs(payment.paid_date || payment.payment_date).format("YYYY-MM-DDTHH:mm")
+        : "";
+      setIncomePaymentPaidDate(paidDate);
       setIncomePaymentRemarks(payment?.remarks || "");
     }
   }
@@ -325,23 +352,10 @@ function PaymentsPageInner() {
   }
 
   async function loadCompanyOptions({ query, limit }) {
-    const result = await listCompanies({
-      page: 1,
-      limit: limit || 20,
-      q: (query || "").trim() || undefined,
-    });
-
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
-      : [];
-
-    return includeInactive
-      ? items
-      : items.filter((it) => (it && it.is_active != null ? !!it.is_active : true));
+    // Use lightweight /options endpoint for dropdown (only returns active items)
+    const items = await listCompanyOptions({ q: (query || "").trim(), limit: limit || 20 });
+    // Note: /options endpoint only returns active companies, so we don't need to filter
+    return items;
   }
 
   function getCompanyOptionLabel(item) {
@@ -377,21 +391,8 @@ function PaymentsPageInner() {
   }
 
   async function loadJobOptions({ query, limit }) {
-    const result = await listJobs({
-      page: 1,
-      limit: limit || 20,
-      q: (query || "").trim() || undefined,
-    });
-
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
-      : [];
-
-    return items;
+    // Use lightweight /options endpoint for dropdown
+    return await listJobOptions({ q: (query || "").trim(), limit: limit || 20 });
   }
 
   function getJobOptionLabel(item) {
@@ -427,21 +428,8 @@ function PaymentsPageInner() {
   }
 
   async function loadCandidateOptions({ query, limit }) {
-    const result = await listCandidates({
-      page: 1,
-      limit: limit || 20,
-      q: (query || "").trim() || undefined,
-    });
-
-    const items = Array.isArray(result?.items)
-      ? result.items
-      : Array.isArray(result?.data)
-      ? result.data
-      : Array.isArray(result)
-      ? result
-      : [];
-
-    return items;
+    // Use lightweight /options endpoint for dropdown
+    return await listCandidateOptions({ q: (query || "").trim(), limit: limit || 20 });
   }
 
   function getCandidateOptionLabel(item) {
@@ -538,12 +526,14 @@ function PaymentsPageInner() {
   }
 
   async function loadPlacementIncomeOptions({ query, limit }) {
+    // Names are now included directly in the API response, no individual API calls needed
     const result = await listPlacementIncomes({
       page: 1,
       limit: limit || 50,
       candidate_id: candidateIdParam || undefined,
       job_id: jobIdParam || undefined,
     });
+    
     const items = Array.isArray(result?.items)
       ? result.items
       : Array.isArray(result?.data)
@@ -552,68 +542,7 @@ function PaymentsPageInner() {
       ? result
       : [];
 
-    try {
-      const companyIds = new Set();
-      const jobIds = new Set();
-      const candidateIds = new Set();
-
-      items.forEach((it) => {
-        const companyId =
-          it?.company_uuid != null
-            ? String(it.company_uuid)
-            : it?.company_id != null
-            ? String(it.company_id)
-            : it?.company?.uuid != null
-            ? String(it.company.uuid)
-            : it?.company?.id != null
-            ? String(it.company.id)
-            : "";
-        const jobId =
-          it?.job_uuid != null
-            ? String(it.job_uuid)
-            : it?.job_id != null
-            ? String(it.job_id)
-            : it?.job?.uuid != null
-            ? String(it.job.uuid)
-            : it?.job?.id != null
-            ? String(it.job.id)
-            : "";
-        const candidateId =
-          it?.candidate_uuid != null
-            ? String(it.candidate_uuid)
-            : it?.candidate_id != null
-            ? String(it.candidate_id)
-            : it?.candidate?.uuid != null
-            ? String(it.candidate.uuid)
-            : it?.candidate?.id != null
-            ? String(it.candidate.id)
-            : "";
-        if (companyId && !companyLabelMapRef.current[companyId]) companyIds.add(companyId);
-        if (jobId && !jobLabelMapRef.current[jobId]) jobIds.add(jobId);
-        if (candidateId && !candidateLabelMapRef.current[candidateId]) candidateIds.add(candidateId);
-      });
-
-      await Promise.allSettled([
-        ...Array.from(companyIds).map(async (id) => {
-          const c = await getCompany(id);
-          const label = getCompanyOptionLabel(c) || `Company #${id}`;
-          setCompanyLabelMap((prev) => ({ ...prev, [String(id)]: label }));
-        }),
-        ...Array.from(jobIds).map(async (id) => {
-          const j = await getJob(id);
-          const label = getJobOptionLabel(j) || `Job #${id}`;
-          setJobLabelMap((prev) => ({ ...prev, [String(id)]: label }));
-        }),
-        ...Array.from(candidateIds).map(async (id) => {
-          const c = await getCandidate(id);
-          const label = getCandidateOptionLabel(c) || `Candidate #${id}`;
-          setCandidateLabelMap((prev) => ({ ...prev, [String(id)]: label }));
-        }),
-      ]);
-    } catch {
-      // ignore
-    }
-
+    // Filter for active balances if adding payment
     const q = String(query || "").trim().toLowerCase();
 
     return items
@@ -638,59 +567,15 @@ function PaymentsPageInner() {
 
   function getPlacementIncomeOptionLabel(item) {
     if (!item) return "";
-    const id = item.id != null ? String(item.id) : item.value != null ? String(item.value) : "";
-    const companyId =
-      item?.company_uuid != null
-        ? String(item.company_uuid)
-        : item?.company_id != null
-        ? String(item.company_id)
-        : item?.company?.uuid != null
-        ? String(item.company.uuid)
-        : item?.company?.id != null
-        ? String(item.company.id)
-        : "";
-    const jobId =
-      item?.job_uuid != null
-        ? String(item.job_uuid)
-        : item?.job_id != null
-        ? String(item.job_id)
-        : item?.job?.uuid != null
-        ? String(item.job.uuid)
-        : item?.job?.id != null
-        ? String(item.job.id)
-        : "";
-    const candidateId =
-      item?.candidate_uuid != null
-        ? String(item.candidate_uuid)
-        : item?.candidate_id != null
-        ? String(item.candidate_id)
-        : item?.candidate?.uuid != null
-        ? String(item.candidate.uuid)
-        : item?.candidate?.id != null
-        ? String(item.candidate.id)
-        : "";
-    const companyName =
-      item.company_name ||
-      item?.company?.name ||
-      item?.company?.company_name ||
-      (companyId ? companyLabelMapRef.current[String(companyId)] : "") ||
-      (companyId ? `Company #${String(companyId)}` : "");
-    const jobTitle =
-      item.job_title ||
-      item?.job?.title ||
-      item?.job?.name ||
-      (jobId ? jobLabelMapRef.current[String(jobId)] : "") ||
-      (jobId ? `Job #${String(jobId)}` : "");
-    const candidateName =
-      item.candidate_name ||
-      item?.candidate?.full_name ||
-      item?.candidate?.name ||
-      (candidateId ? candidateLabelMapRef.current[String(candidateId)] : "") ||
-      (candidateId ? `Candidate #${String(candidateId)}` : "");
+    
+    // Names are now directly available from the API response
+    const candidateName = item.candidate_name || "";
+    const jobTitle = item.job_title || "";
+    const companyName = item.company_name || "";
 
-    const parts = [companyName, jobTitle, candidateName].filter(Boolean);
-    const base = parts.length ? parts.join(" - ") : "Placement income";
-    return `${base} (${id || "-"})`;
+    const parts = [candidateName, jobTitle, companyName].filter(Boolean);
+    const base = parts.length ? parts.join(" - ") : "Placement Income";
+    return base;
   }
 
   function getPlacementIncomeOptionValue(item) {
@@ -703,15 +588,15 @@ function PaymentsPageInner() {
     const cached = incomeLabelMapRef.current[String(value)];
     if (cached) return cached;
     try {
+      // The API now returns names directly, so we can use them
       const it = await getPlacementIncome(value);
-      const companyName = it?.company_name || it?.company?.name || it?.company?.company_name || "";
-      const jobTitle = it?.job_title || it?.job?.title || it?.job?.name || "";
-      const candidateName = it?.candidate_name || it?.candidate?.full_name || it?.candidate?.name || "";
-      const parts = [companyName, jobTitle, candidateName].filter(Boolean);
-      const base = parts.length ? parts.join(" - ") : "Placement income";
-      const label = `${base} (${value})`;
-      setIncomeLabelMap((prev) => ({ ...prev, [String(value)]: label }));
-      return label;
+      const candidateName = it?.candidate_name || "";
+      const jobTitle = it?.job_title || "";
+      const companyName = it?.company_name || "";
+      const parts = [candidateName, jobTitle, companyName].filter(Boolean);
+      const base = parts.length ? parts.join(" - ") : "Placement Income";
+      setIncomeLabelMap((prev) => ({ ...prev, [String(value)]: base }));
+      return base;
     } catch {
       return "";
     }
@@ -897,10 +782,12 @@ function PaymentsPageInner() {
 
       if (source === "COMPANY_PAYMENT") {
         await deleteCompanyPayment(paymentId);
-      } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
-        await deleteCandidatePayment(paymentId);
       } else if (source === "PLACEMENT_INCOME_PAYMENT") {
         await deletePlacementIncomePayment(paymentId);
+      } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
+        await deleteCandidatePayment(paymentId);
+      } else {
+        throw new Error("Unknown payment source");
       }
 
       setDeleteConfirmOpen(false);
@@ -1172,8 +1059,8 @@ function PaymentsPageInner() {
               searchPlaceholder="Search companies..."
               loadOptions={loadCompanyOptions}
               resolveSelectedLabel={resolveCompanyLabel}
-              getOptionLabel={getCompanyOptionLabel}
-              getOptionValue={getCompanyOptionValue}
+              getOptionLabel={(c) => c.name || getCompanyOptionLabel(c)}
+              getOptionValue={(c) => String(c.id || getCompanyOptionValue(c))}
               allowClear
             />
           </div>
@@ -1194,8 +1081,8 @@ function PaymentsPageInner() {
               searchPlaceholder="Search candidates..."
               loadOptions={loadCandidateOptions}
               resolveSelectedLabel={resolveCandidateLabel}
-              getOptionLabel={getCandidateOptionLabel}
-              getOptionValue={getCandidateOptionValue}
+              getOptionLabel={(c) => c.name || getCandidateOptionLabel(c)}
+              getOptionValue={(c) => String(c.id || getCandidateOptionValue(c))}
               allowClear
             />
           </div>

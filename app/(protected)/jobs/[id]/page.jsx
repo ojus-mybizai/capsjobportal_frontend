@@ -8,12 +8,8 @@ import { useUIStore } from "@/stores/ui";
 import JobForm from "@/components/forms/JobForm";
 import Modal from "@/components/ui/Modal";
 import DetailShell from "@/components/ui/DetailShell";
-import {
-  getJob,
-  updateJob,
-  updateJobStatus,
-  uploadJobAttachment,
-} from "@/services/jobs";
+import { uploadJobAttachment } from "@/services/jobs";
+import { useJobsStore } from "@/stores/jobs";
 import { listPlacementIncomes } from "@/services/placementIncomes";
 import Button from "@/components/ui/Button";
 import StatusPill from "@/components/ui/StatusPill";
@@ -35,6 +31,9 @@ export default function JobDetailPage() {
   const router = useRouter();
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
+  const getJob = useJobsStore((state) => state.get);
+  const updateJobInStore = useJobsStore((state) => state.update);
+  const updateStatusInStore = useJobsStore((state) => state.updateStatus);
 
   const [tab, setTab] = useState("overview");
 
@@ -69,8 +68,6 @@ export default function JobDetailPage() {
       setLoading(true);
       try {
         const data = await getJob(id);
-        console.log(data)
-        console.log("job")
         if (!active) return;
         setJob(data);
         setStatusValue(data.status || "OPEN");
@@ -89,7 +86,7 @@ export default function JobDetailPage() {
     return () => {
       active = false;
     };
-  }, [id, pushToast]);
+  }, [id, pushToast, getJob]);
 
   useEffect(() => {
     if (tab !== "hiring" && tab !== "payments") return;
@@ -171,49 +168,19 @@ export default function JobDetailPage() {
 
         let incomes = [];
 
-        try {
-          const result = await listPlacementIncomes({
-            page: 1,
-            limit: 100,
-            job_id: String(id),
-          });
+        const result = await listPlacementIncomes({
+          page: 1,
+          limit: 100,
+          job_id: String(id),
+        });
 
-          incomes = Array.isArray(result?.items)
-            ? result.items
-            : Array.isArray(result?.data)
-            ? result.data
-            : Array.isArray(result)
-            ? result
-            : [];
-        } catch {
-          // Fallback: load per-candidate placement incomes
-          const results = await Promise.all(
-            joinedCandidateIds.map(async (candidateId) => {
-              try {
-                const res = await listPlacementIncomes({
-                  page: 1,
-                  limit: 100,
-                  candidate_id: candidateId,
-                  job_id: String(id),
-                });
-
-                const items = Array.isArray(res?.items)
-                  ? res.items
-                  : Array.isArray(res?.data)
-                  ? res.data
-                  : Array.isArray(res)
-                  ? res
-                  : [];
-
-                return items;
-              } catch {
-                return [];
-              }
-            })
-          );
-
-          incomes = results.flat();
-        }
+        incomes = Array.isArray(result?.items)
+          ? result.items
+          : Array.isArray(result?.data)
+          ? result.data
+          : Array.isArray(result)
+          ? result
+          : [];
 
         const byCandidate = {};
         (Array.isArray(incomes) ? incomes : [])
@@ -423,7 +390,7 @@ export default function JobDetailPage() {
       };
       console.log(payload)
 
-      const updated = await updateJob(id, payload);
+      const updated = await updateJobInStore(id, payload);
       setJob(updated);
 
       pushToast({
@@ -500,12 +467,9 @@ export default function JobDetailPage() {
       });
       setAttachmentFiles([]);
 
-      try {
-        const refreshed = await getJob(id);
-        setJob(refreshed);
-      } catch {
-        // ignore refresh errors
-      }
+      // Refresh from store cache (already updated by attachment upload)
+      const refreshed = await getJob(id, { force: true });
+      setJob(refreshed);
     } catch (error) {
       pushToast({
         title: "Failed to upload attachments",
@@ -525,7 +489,7 @@ export default function JobDetailPage() {
       const payload = {
         status: statusValue || undefined,
       };
-      const updated = await updateJobStatus(id, payload);
+      const updated = await updateStatusInStore(id, { status: statusValue });
       setJob(updated);
       setStatusValue(updated.status || statusValue);
       pushToast({

@@ -8,8 +8,9 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
 import { useMastersStore } from "@/stores/masters";
-import { getJob, listJobs } from "@/services/jobs";
+import { listJobOptions } from "@/services/jobs";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
+import { useJobsStore } from "@/stores/jobs";
 
 const emailSchema = z.string().trim().email("Enter a valid email").or(z.literal("")).optional();
 
@@ -69,13 +70,8 @@ export default function CandidateForm({
     },
   });
 
-  const loadMaster = useMastersStore((state) => state.loadMaster);
   const getOptions = useMastersStore((state) => state.getOptions);
 
-  const [locationOptions, setLocationOptions] = useState([]);
-  const [skillOptions, setSkillOptions] = useState([]);
-  const [educationOptions, setEducationOptions] = useState([]);
-  const [degreeOptions, setDegreeOptions] = useState([]);
   const [skillInput, setSkillInput] = useState("");
   const [educationInput, setEducationInput] = useState("");
   const [degreeInput, setDegreeInput] = useState("");
@@ -91,49 +87,46 @@ export default function CandidateForm({
   const degree = watch("degree") || [];
   const status = watch("status") || "REGISTERED";
 
-  useEffect(() => {
-    let active = true;
+  // Use masters directly from store - they're preloaded in client-layout
+  const locationOptions = getOptions("location");
+  const skillOptions = getOptions("skill");
+  const educationOptions = getOptions("education");
+  const degreeOptions = getOptions("degree");
 
-    async function loadData() {
-      try {
-        await loadMaster("location");
-        if (!active) return;
-        setLocationOptions(getOptions("location"));
-        await loadMaster("skill");
-        await loadMaster("education");
-        await loadMaster("degree");
-        if (!active) return;
-        setSkillOptions(getOptions("skill"));
-        setEducationOptions(getOptions("education"));
-        setDegreeOptions(getOptions("degree"));
-      } catch {
-        if (!active) return;
-        setLocationOptions([]);
-        setSkillOptions([]);
-        setEducationOptions([]);
-        setDegreeOptions([]);
-      }
+  const loadJobOptions = useCallback(async ({ query, limit }) => {
+    // Use lightweight /options endpoint
+    const items = await listJobOptions({ q: query || "", limit: limit || 20 });
+    
+    // Populate store cache (only if not already cached)
+    if (items.length > 0) {
+      const store = useJobsStore.getState();
+      const nextById = { ...store.byId };
+      items.forEach((item) => {
+        if (item?.id && !nextById[item.id]) {
+          nextById[item.id] = { id: item.id, title: item.name }; // name = title for jobs
+        }
+      });
+      useJobsStore.setState({ byId: nextById });
     }
+    
+    return items;
+  }, []);
 
-    loadData();
-    return () => {
-      active = false;
-    };
-  }, [loadMaster, getOptions]);
-
-  async function loadJobOptions({ query, limit }) {
-    const result = await listJobs({ page: 1, limit: limit || 20, q: query || "" });
-    if (Array.isArray(result?.items)) return result.items;
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result)) return result;
-    return [];
-  }
-
-  async function resolveJobLabel({ value }) {
-    const job = await getJob(value);
+  const resolveJobLabel = useCallback(async ({ value }) => {
+    if (!value) return "";
+    
+    // Check store cache first
+    const store = useJobsStore.getState();
+    const cached = store.byId[value];
+    if (cached) {
+      return cached.title || cached.name || `Job #${value}`;
+    }
+    
+    // Fallback to API (which will also cache)
+    const job = await store.get(value);
     if (!job) return "";
     return job.title || job.name || `Job #${value}`;
-  }
+  }, []);
 
   function handleFileChange(field, event) {
     const file = event.target.files && event.target.files[0];
