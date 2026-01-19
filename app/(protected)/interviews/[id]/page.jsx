@@ -21,6 +21,7 @@ import {
   getPlacementIncome,
   createPlacementIncome,
   updatePlacementIncome,
+  deletePlacementIncome,
   listPlacementIncomes,
 } from "@/services/placementIncomes";
 
@@ -87,6 +88,8 @@ export default function InterviewDetailPage() {
   const [loadingPlacementIncome, setLoadingPlacementIncome] = useState(false);
   const [placementIncomeModalOpen, setPlacementIncomeModalOpen] = useState(false);
   const [savingPlacementIncome, setSavingPlacementIncome] = useState(false);
+  const [deletingPlacementIncome, setDeletingPlacementIncome] = useState(false);
+  const [deletePlacementIncomeConfirmOpen, setDeletePlacementIncomeConfirmOpen] = useState(false);
   const [placementIncomeTotalReceivable, setPlacementIncomeTotalReceivable] = useState("");
   const [placementIncomeDueDate, setPlacementIncomeDueDate] = useState("");
   const [placementIncomeRemarks, setPlacementIncomeRemarks] = useState("");
@@ -361,6 +364,31 @@ export default function InterviewDetailPage() {
     }
   }
 
+  async function handleDeletePlacementIncome() {
+    if (!placementIncome || deletingPlacementIncome) return;
+    setDeletingPlacementIncome(true);
+    try {
+      await deletePlacementIncome(placementIncome.id);
+      setPlacementIncome(null);
+      setDeletePlacementIncomeConfirmOpen(false);
+      // Refresh interview to clear placement_income_id if it exists
+      const updatedInterview = await getInterview(id, { force: true });
+      setInterview(updatedInterview);
+      pushToast({
+        title: "Placement income deleted",
+        description: "Placement income and all related payments have been deleted successfully.",
+      });
+    } catch (error) {
+      pushToast({
+        title: "Failed to delete placement income",
+        description:
+          (error && error.message) || "An error occurred while deleting the placement income.",
+      });
+    } finally {
+      setDeletingPlacementIncome(false);
+    }
+  }
+
   if (loading) {
     return (
       <DetailShell
@@ -481,28 +509,42 @@ export default function InterviewDetailPage() {
             <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold text-slate-600">Placement Income</div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    if (placementIncome) {
-                      setPlacementIncomeTotalReceivable(String(placementIncome.total_receivable || ""));
-                      setPlacementIncomeDueDate(
-                        placementIncome.due_date
-                          ? dayjs(placementIncome.due_date).format("YYYY-MM-DD")
-                          : ""
-                      );
-                      setPlacementIncomeRemarks(placementIncome.remarks || "");
-                    } else {
-                      setPlacementIncomeTotalReceivable("");
-                      setPlacementIncomeDueDate("");
-                      setPlacementIncomeRemarks("");
-                    }
-                    setPlacementIncomeModalOpen(true);
-                  }}
-                >
-                  {placementIncome ? "Edit" : "Create"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {placementIncome && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 hover:text-red-700 hover:border-red-300"
+                      onClick={() => setDeletePlacementIncomeConfirmOpen(true)}
+                      disabled={deletingPlacementIncome}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      if (placementIncome) {
+                        setPlacementIncomeTotalReceivable(String(placementIncome.total_receivable || ""));
+                        setPlacementIncomeDueDate(
+                          placementIncome.due_date
+                            ? dayjs(placementIncome.due_date).format("YYYY-MM-DD")
+                            : ""
+                        );
+                        setPlacementIncomeRemarks(placementIncome.remarks || "");
+                      } else {
+                        setPlacementIncomeTotalReceivable("");
+                        setPlacementIncomeDueDate("");
+                        setPlacementIncomeRemarks("");
+                      }
+                      setPlacementIncomeModalOpen(true);
+                    }}
+                  >
+                    {placementIncome ? "Edit" : "Create"}
+                  </Button>
+                </div>
               </div>
               {placementIncome ? (
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -683,6 +725,58 @@ export default function InterviewDetailPage() {
             </Button>
             <Button type="button" size="sm" disabled={savingPlacementIncome} onClick={handlePlacementIncomeSave}>
               {savingPlacementIncome ? "Saving..." : placementIncome ? "Update" : "Create"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Placement Income Confirmation Modal */}
+      <Modal
+        open={deletePlacementIncomeConfirmOpen}
+        onClose={() => setDeletePlacementIncomeConfirmOpen(false)}
+        title="Delete Placement Income"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-slate-600">
+            Are you sure you want to delete this placement income? This will also delete all related payments. This action cannot be undone.
+          </div>
+          
+          {placementIncome && (
+            <div className="rounded-md bg-slate-50 p-3 text-xs">
+              <div className="font-medium text-slate-900">Placement Income Details</div>
+              <div className="mt-1 text-slate-600">
+                Total Receivable: ₹{placementIncome.total_receivable?.toLocaleString("en-IN") || "0"}
+              </div>
+              <div className="text-slate-600">
+                Total Received: ₹{placementIncome.total_received?.toLocaleString("en-IN") || "0"}
+              </div>
+              <div className="text-slate-600">
+                Balance: ₹{placementIncome.balance?.toLocaleString("en-IN") || "0"}
+              </div>
+              {placementIncome.due_date && (
+                <div className="text-slate-600">
+                  Due Date: {dayjs(placementIncome.due_date).format("YYYY-MM-DD")}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeletePlacementIncomeConfirmOpen(false)}
+              disabled={deletingPlacementIncome}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeletePlacementIncome}
+              disabled={deletingPlacementIncome}
+            >
+              {deletingPlacementIncome ? "Deleting..." : "Delete"}
             </Button>
           </div>
         </div>
