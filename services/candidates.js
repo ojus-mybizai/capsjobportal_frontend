@@ -206,6 +206,26 @@ export function deleteCandidatePayment(paymentId) {
   return api.delete(`candidate-payments/${paymentId}`);
 }
 
+export function updateJocFee(feeId, payload) {
+  const body = stripEmpty(payload);
+
+  if (USE_MOCK_DATA) {
+    return Promise.resolve({ id: feeId, ...body });
+  }
+
+  return api
+    .put(`candidates/joc-fees/${feeId}`, body)
+    .then((result) => ensureObjectData(result, "Failed to update JOC fee"));
+}
+
+export function deleteJocFee(feeId) {
+  if (USE_MOCK_DATA) {
+    return Promise.resolve({ id: feeId });
+  }
+
+  return api.delete(`candidates/joc-fees/${feeId}`);
+}
+
 export function listCandidateAppliedJobs(candidateId) {
   if (USE_MOCK_DATA) {
     return Promise.resolve([]);
