@@ -276,7 +276,7 @@ export default function JobDetailPage() {
   function formatDate(value) {
     if (!value) return "-";
     const d = dayjs(value);
-    return d.isValid() ? d.format("YYYY-MM-DD") : String(value);
+    return d.isValid() ? d.format("DD MMM YYYY") : String(value);
   }
 
   function formatRange(min, max) {
@@ -787,7 +787,7 @@ export default function JobDetailPage() {
                     `Candidate #${candidateId || "-"}`;
 
                   const dueText = row?.latest_due_date
-                    ? dayjs(row.latest_due_date).format("YYYY-MM-DD")
+                    ? dayjs(row.latest_due_date).format("DD MMM YYYY")
                     : "-";
 
                   const paymentsHref = candidateId
@@ -946,7 +946,7 @@ export default function JobDetailPage() {
                     ? `Candidate #${item.candidate_id}`
                     : `#${item.id}`);
 
-                const dojText = item.doj ? dayjs(item.doj).format("YYYY-MM-DD") : "-";
+                const dojText = item.doj ? dayjs(item.doj).format("DD MMM YYYY") : "-";
 
                 const salaryText =
                   typeof item.salary === "number" ? item.salary : item.salary || "-";

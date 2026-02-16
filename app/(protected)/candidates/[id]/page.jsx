@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import dayjs from "dayjs";
+import { formatDateOnly, toDateInputValue } from "@/utils/date";
 import { useUIStore } from "@/stores/ui";
 import { useCandidatesStore } from "@/stores/candidates";
 import CandidateForm from "@/components/forms/CandidateForm";
@@ -81,7 +82,7 @@ export default function CandidateDetailPage() {
     candidate?.expected_salary != null && candidate.expected_salary !== ""
       ? candidate.expected_salary
       : null;
-  const dobDisplay = candidate?.dob ? dayjs(candidate.dob).format("YYYY-MM-DD") : "";
+  const dobDisplay = candidate?.dob ? dayjs(candidate.dob).format("DD MMM YYYY") : "";
   const ageDisplay =
     candidate?.age != null
       ? `${candidate.age} yrs`
@@ -261,9 +262,7 @@ export default function CandidateDetailPage() {
       registrationPayment.amount != null ? String(registrationPayment.amount) : ""
     );
     setRegDate(
-      registrationPayment.payment_date
-        ? dayjs(registrationPayment.payment_date).format("YYYY-MM-DDTHH:mm")
-        : ""
+      registrationPayment.payment_date ? toDateInputValue(registrationPayment.payment_date) : ""
     );
     setRegRemarks(registrationPayment.remarks || "");
   }, [registrationPayment]);
@@ -381,7 +380,7 @@ export default function CandidateDetailPage() {
     setJocPaymentRemarks("");
     setJocDueDate(
       candidate?.fee_structure && candidate.fee_structure.due_date
-        ? dayjs(candidate.fee_structure.due_date).format("YYYY-MM-DD")
+        ? toDateInputValue(candidate.fee_structure.due_date)
         : ""
     );
     setStatusModalOpen(true);
@@ -797,9 +796,7 @@ export default function CandidateDetailPage() {
   const paymentRows = payments.map((payment) => ({
     id: payment.id,
     amount: payment.amount,
-    payment_date: payment.payment_date
-      ? dayjs(payment.payment_date).format("YYYY-MM-DD HH:mm")
-      : "-",
+    payment_date: payment.payment_date ? formatDateOnly(payment.payment_date) : "-",
     remarks: payment.remarks || "",
   }));
 
@@ -810,9 +807,7 @@ export default function CandidateDetailPage() {
     job_status: item.job_status || "-",
     interviews_count: item.interviews_count ?? 0,
     latest_interview_status: item.latest_interview_status || "-",
-    last_interview_date: item.last_interview_date
-      ? dayjs(item.last_interview_date).format("YYYY-MM-DD HH:mm")
-      : "-",
+    last_interview_date: item.last_interview_date ? formatDateOnly(item.last_interview_date) : "-",
     link: item.job_id ? `/jobs/${item.job_id}` : null,
   }));
 
@@ -942,7 +937,7 @@ export default function CandidateDetailPage() {
             <div>
               <div className="text-xs font-semibold text-slate-600">Created</div>
               <div className="mt-1 text-sm font-medium text-slate-900">
-                {candidate.created_at ? dayjs(candidate.created_at).format("YYYY-MM-DD") : "-"}
+                {candidate.created_at ? formatDateOnly(candidate.created_at) : "-"}
               </div>
             </div>
           </div>
@@ -1140,9 +1135,9 @@ export default function CandidateDetailPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-[11px] font-medium text-slate-700">Payment date & time</label>
+                    <label className="block text-[11px] font-medium text-slate-700">Payment date</label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
                       value={regDate}
                       onChange={(e) => setRegDate(e.target.value)}
@@ -1161,7 +1156,7 @@ export default function CandidateDetailPage() {
                   <div className="md:col-span-3 flex items-center justify-between gap-2 pt-1">
                     <div className="text-[10px] text-slate-500">
                       {registrationPayment && registrationPayment.created_at
-                        ? `Created at: ${dayjs(registrationPayment.created_at).format("YYYY-MM-DD HH:mm")}`
+                        ? `Created: ${formatDateOnly(registrationPayment.created_at)}`
                         : null}
                     </div>
                     <div className="flex items-center gap-2">
@@ -1244,9 +1239,9 @@ export default function CandidateDetailPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-[11px] font-medium text-slate-700">Payment date & time</label>
+                      <label className="block text-[11px] font-medium text-slate-700">Payment date</label>
                       <input
-                        type="datetime-local"
+                        type="date"
                         className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
                         value={newPaymentDate}
                         onChange={(e) => setNewPaymentDate(e.target.value)}
@@ -1402,7 +1397,7 @@ export default function CandidateDetailPage() {
                 <div className="space-y-1">
                   <label className="block font-semibold text-slate-700">Payment date *</label>
                   <input
-                    type="datetime-local"
+                    type="date"
                     value={jocPaymentDate}
                     onChange={(e) => setJocPaymentDate(e.target.value)}
                     className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"

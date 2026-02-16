@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import Link from "next/link";
+import { toDateInputValue } from "@/utils/date";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
@@ -170,9 +171,7 @@ function PendingPageInner() {
   function handleEdit(item) {
     setSelectedItem(item);
     setEditTotalFee(String(item.total_amount || ""));
-    setEditDueDate(
-      item.due_date ? dayjs(item.due_date).format("YYYY-MM-DD") : ""
-    );
+    setEditDueDate(item.due_date ? toDateInputValue(item.due_date) : "");
     setEditModalOpen(true);
   }
 
@@ -184,7 +183,7 @@ function PendingPageInner() {
   function handleAddPayment(item) {
     setSelectedItem(item);
     setPaymentAmount("");
-    setPaymentDate(dayjs().format("YYYY-MM-DDTHH:mm"));
+    setPaymentDate(dayjs().format("YYYY-MM-DD"));
     setPaymentRemarks("");
     setAddPaymentModalOpen(true);
   }
@@ -585,9 +584,9 @@ function PendingPageInner() {
             />
           </div>
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">Payment Date & Time *</label>
+            <label className="block text-xs font-medium text-slate-700">Payment Date *</label>
             <Input
-              type="datetime-local"
+              type="date"
               value={paymentDate}
               onChange={(e) => setPaymentDate(e.target.value)}
             />

@@ -310,9 +310,9 @@ export default function InterviewForm({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-700">
-            Interview date & time
+            Interview date
           </label>
-          <Input type="datetime-local" {...register("interviewDate")} />
+          <Input type="date" {...register("interviewDate")} />
           {errors.interviewDate && (
             <p className="mt-1 text-xs text-[var(--danger)]">
               {errors.interviewDate.message}

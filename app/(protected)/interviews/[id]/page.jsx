@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import dayjs from "dayjs";
+import { formatDateOnly, toDateInputValue } from "@/utils/date";
 import { useUIStore } from "@/stores/ui";
 import { useInterviewsStore } from "@/stores/interviews";
 import { useJobsStore } from "@/stores/jobs";
@@ -475,7 +476,7 @@ export default function InterviewDetailPage() {
               <div className="text-xs font-semibold text-slate-600">Interview date</div>
               <div className="mt-1 text-sm font-medium text-slate-900">
                 {interview.interview_date
-                  ? dayjs(interview.interview_date).format("YYYY-MM-DD HH:mm")
+                  ? dayjs(interview.interview_date).format("DD MMM YYYY")
                   : "Not set"}
               </div>
             </div>
@@ -529,9 +530,7 @@ export default function InterviewDetailPage() {
                       if (placementIncome) {
                         setPlacementIncomeTotalReceivable(String(placementIncome.total_receivable || ""));
                         setPlacementIncomeDueDate(
-                          placementIncome.due_date
-                            ? dayjs(placementIncome.due_date).format("YYYY-MM-DD")
-                            : ""
+                          placementIncome.due_date ? toDateInputValue(placementIncome.due_date) : ""
                         );
                         setPlacementIncomeRemarks(placementIncome.remarks || "");
                       } else {
@@ -563,9 +562,7 @@ export default function InterviewDetailPage() {
                   <div>
                     <div className="text-[11px] text-slate-500">Due date</div>
                     <div className="mt-1 text-sm font-medium text-slate-900">
-                      {placementIncome.due_date
-                        ? dayjs(placementIncome.due_date).format("YYYY-MM-DD")
-                        : "Not set"}
+                      {placementIncome.due_date ? formatDateOnly(placementIncome.due_date) : "Not set"}
                     </div>
                   </div>
                   {placementIncome.remarks && (
@@ -621,7 +618,7 @@ export default function InterviewDetailPage() {
                   <label className="block text-[11px] font-medium text-slate-700">
                     Date of joining
                   </label>
-                  <Input type="datetime-local" {...register("doj")} />
+                  <Input type="date" {...register("doj")} />
                   {errors.doj && (
                     <p className="mt-1 text-[11px] text-[var(--danger)]">
                       {errors.doj.message}
@@ -755,7 +752,7 @@ export default function InterviewDetailPage() {
               </div>
               {placementIncome.due_date && (
                 <div className="text-slate-600">
-                  Due Date: {dayjs(placementIncome.due_date).format("YYYY-MM-DD")}
+                  Due Date: {formatDateOnly(placementIncome.due_date)}
                 </div>
               )}
             </div>

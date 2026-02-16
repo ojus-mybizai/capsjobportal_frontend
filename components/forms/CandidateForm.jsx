@@ -534,12 +534,9 @@ export default function CandidateForm({
               </div>
               <div className="space-y-1">
                 <label className="block text-[11px] font-medium text-slate-700">
-                  Registration date & time
+                  Registration date
                 </label>
-                <Input
-                  type="datetime-local"
-                  {...register("registration_date")}
-                />
+                <Input type="date" {...register("registration_date")} />
               </div>
             </div>
           )}
@@ -580,12 +577,9 @@ export default function CandidateForm({
                 </div>
                 <div className="space-y-1">
                   <label className="block text-[11px] font-medium text-slate-700">
-                    Initial payment date & time
+                    Initial payment date
                   </label>
-                  <Input
-                    type="datetime-local"
-                    {...register("joc_initial_payment_date")}
-                  />
+                  <Input type="date" {...register("joc_initial_payment_date")} />
                 </div>
               </div>
             </div>

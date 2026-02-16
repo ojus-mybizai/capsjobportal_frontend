@@ -344,7 +344,7 @@ function InterviewsPageInner() {
       key: "interview_date",
       label: "Interview date",
       render: (value) =>
-        value ? dayjs(value).format("DD MMM YYYY, HH:mm") : "Not set",
+        value ? dayjs(value).format("DD MMM YYYY") : "Not set",
     },
     {
       key: "remarks",

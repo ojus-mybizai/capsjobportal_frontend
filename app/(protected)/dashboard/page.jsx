@@ -245,7 +245,7 @@ function DashboardPageInner() {
   const startDateParam = searchParams.get("start_date") || "";
   const endDateParam = searchParams.get("end_date") || "";
   const endOfMonth = dayjs().endOf("month").format("YYYY-MM-DD");
-  const selectedRange = rangeParam || "till_date";
+  const selectedRange = rangeParam || "this_month";
   const [dueBefore, setDueBefore] = useState(endOfMonth);
 
   const customRangeLabel =
@@ -358,7 +358,7 @@ function DashboardPageInner() {
   useEffect(() => {
     if (rangeParam) return;
     if (startDateParam || endDateParam) return;
-    applyRange("till_date");
+    applyRange("this_month");
     loadPendingDues(endOfMonth);
   }, [rangeParam, startDateParam, endDateParam]);
 

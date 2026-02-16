@@ -321,7 +321,7 @@ function ReportsPageInner() {
       render: (value) => {
         if (!value) return "-";
         try {
-          return dayjs(value).format("YYYY-MM-DD HH:mm");
+          return dayjs(value).format("DD MMM YYYY");
         } catch {
           return String(value);
         }
@@ -389,7 +389,7 @@ function ReportsPageInner() {
       render: (value) => {
         if (!value) return "-";
         try {
-          return dayjs(value).format("YYYY-MM-DD HH:mm");
+          return dayjs(value).format("DD MMM YYYY");
         } catch {
           return String(value);
         }

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
+import { formatDateOnly, toDateInputValue } from "@/utils/date";
 import { useUIStore } from "@/stores/ui";
 import { paymentsLedger } from "@/services/payments";
 import { listCompanies, getCompany, listCompanyOptions } from "@/services/companies";
@@ -288,31 +289,19 @@ function PaymentsPageInner() {
       setAddType("COMPANY_PAYMENT");
       setCompanyPaymentCompanyId(payment?.company_id || "");
       setCompanyPaymentAmount(String(payment?.amount || ""));
-      // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
-      const companyDate = payment?.payment_date 
-        ? dayjs(payment.payment_date).format("YYYY-MM-DDTHH:mm")
-        : "";
-      setCompanyPaymentDate(companyDate);
+      setCompanyPaymentDate(toDateInputValue(payment?.payment_date) || "");
     } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
       setAddType("CANDIDATE_PAYMENT");
       setCandidatePaymentCandidateId(payment?.candidate_id || "");
       setCandidatePaymentAmount(String(payment?.amount || ""));
-      // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
-      const candidateDate = payment?.payment_date
-        ? dayjs(payment.payment_date).format("YYYY-MM-DDTHH:mm")
-        : "";
-      setCandidatePaymentDate(candidateDate);
+      setCandidatePaymentDate(toDateInputValue(payment?.payment_date) || "");
       setCandidatePaymentRemarks(payment?.remarks || "");
-    } else if (source === "PLACEMENT_INCOME_PAYMENT") {
+    } else if (source === "PLACEMENT_INCOME" || source === "PLACEMENT_INCOME_PAYMENT") {
       setAddType("PLACEMENT_INCOME_PAYMENT");
       const incomeId = payment?.placement_income_id ? String(payment.placement_income_id) : "";
       setIncomePaymentIncomeId(incomeId);
       setIncomePaymentAmount(String(payment?.amount || ""));
-      // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
-      const paidDate = payment?.paid_date || payment?.payment_date
-        ? dayjs(payment.paid_date || payment.payment_date).format("YYYY-MM-DDTHH:mm")
-        : "";
-      setIncomePaymentPaidDate(paidDate);
+      setIncomePaymentPaidDate(toDateInputValue(payment?.paid_date || payment?.payment_date) || "");
       setIncomePaymentRemarks(payment?.remarks || "");
     }
   }
@@ -744,7 +733,7 @@ function PaymentsPageInner() {
           payment_date: paymentDate,
           remarks: remarks || undefined,
         });
-      } else if (source === "PLACEMENT_INCOME_PAYMENT") {
+      } else if (source === "PLACEMENT_INCOME" || source === "PLACEMENT_INCOME_PAYMENT") {
         const incomeId = String(incomePaymentIncomeId || "").trim();
         const amount = Number(incomePaymentAmount);
         const paidDate = String(incomePaymentPaidDate || "").trim();
@@ -782,7 +771,7 @@ function PaymentsPageInner() {
 
       if (source === "COMPANY_PAYMENT") {
         await deleteCompanyPayment(paymentId);
-      } else if (source === "PLACEMENT_INCOME_PAYMENT") {
+      } else if (source === "PLACEMENT_INCOME" || source === "PLACEMENT_INCOME_PAYMENT") {
         await deletePlacementIncomePayment(paymentId);
       } else if (source === "JOC_FEE" || source === "REGISTRATION_FEE") {
         await deleteCandidatePayment(paymentId);
@@ -914,14 +903,7 @@ function PaymentsPageInner() {
       {
         key: "payment_date",
         label: "Payment date",
-        render: (value) => {
-          if (!value) return "-";
-          try {
-            return dayjs(value).format("YYYY-MM-DD HH:mm");
-          } catch {
-            return String(value);
-          }
-        },
+        render: (value) => (value ? formatDateOnly(value) : "-"),
       },
       {
         key: "amount",
@@ -1028,18 +1010,18 @@ function PaymentsPageInner() {
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-slate-700">Start date</div>
             <Input
-              type="datetime-local"
-              value={startDateParam}
-              onChange={(e) => setParam("start_date", e.target.value)}
+              type="date"
+              value={startDateParam ? (startDateParam.length >= 10 ? startDateParam.slice(0, 10) : startDateParam) : ""}
+              onChange={(e) => setParam("start_date", e.target.value ? `${e.target.value}T00:00:00` : "")}
             />
           </div>
 
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-slate-700">End date</div>
             <Input
-              type="datetime-local"
-              value={endDateParam}
-              onChange={(e) => setParam("end_date", e.target.value)}
+              type="date"
+              value={endDateParam ? (endDateParam.length >= 10 ? endDateParam.slice(0, 10) : endDateParam) : ""}
+              onChange={(e) => setParam("end_date", e.target.value ? `${e.target.value}T23:59:59` : "")}
             />
           </div>
 
@@ -1271,7 +1253,7 @@ function PaymentsPageInner() {
               <div className="space-y-1">
                 <div className="text-[11px] font-medium text-slate-700">Payment date</div>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={companyPaymentDate}
                   onChange={(e) => setCompanyPaymentDate(e.target.value)}
                   disabled={savingPayment}
@@ -1320,7 +1302,7 @@ function PaymentsPageInner() {
               <div className="space-y-1">
                 <div className="text-[11px] font-medium text-slate-700">Payment date</div>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={candidatePaymentDate}
                   onChange={(e) => setCandidatePaymentDate(e.target.value)}
                   disabled={savingPayment}
@@ -1424,7 +1406,7 @@ function PaymentsPageInner() {
               <div className="space-y-1">
                 <div className="text-[11px] font-medium text-slate-700">Due date</div>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={placementIncomeDueDate}
                   onChange={(e) => setPlacementIncomeDueDate(e.target.value)}
                   disabled={savingPayment}
@@ -1482,7 +1464,7 @@ function PaymentsPageInner() {
               <div className="space-y-1">
                 <div className="text-[11px] font-medium text-slate-700">Paid date</div>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={incomePaymentPaidDate}
                   onChange={(e) => setIncomePaymentPaidDate(e.target.value)}
                   disabled={savingPayment}
@@ -1568,7 +1550,7 @@ function PaymentsPageInner() {
               <div className="space-y-1 md:col-span-2">
                 <div className="text-[11px] font-medium text-slate-700">Payment date</div>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={companyPaymentDate}
                   onChange={(e) => setCompanyPaymentDate(e.target.value)}
                   disabled={savingPayment}
@@ -1617,7 +1599,7 @@ function PaymentsPageInner() {
               <div className="space-y-1">
                 <div className="text-[11px] font-medium text-slate-700">Payment date</div>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={candidatePaymentDate}
                   onChange={(e) => setCandidatePaymentDate(e.target.value)}
                   disabled={savingPayment}
@@ -1675,7 +1657,7 @@ function PaymentsPageInner() {
               <div className="space-y-1">
                 <div className="text-[11px] font-medium text-slate-700">Paid date</div>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={incomePaymentPaidDate}
                   onChange={(e) => setIncomePaymentPaidDate(e.target.value)}
                   disabled={savingPayment}
@@ -1725,7 +1707,7 @@ function PaymentsPageInner() {
                 Amount: {formatCurrency(editingPayment.amount)}
               </div>
               <div className="text-slate-600">
-                Date: {editingPayment.payment_date ? dayjs(editingPayment.payment_date).format("YYYY-MM-DD HH:mm") : "-"}
+                Date: {editingPayment.payment_date ? formatDateOnly(editingPayment.payment_date) : "-"}
               </div>
             </div>
           )}
