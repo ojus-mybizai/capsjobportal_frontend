@@ -1177,6 +1177,7 @@ function PaymentsPageInner() {
           page={page}
           limit={limit}
           total={total}
+          loading={loading}
           onPageChange={(nextPage) => {
             const params = new URLSearchParams(searchParams.toString());
             params.set("page", String(nextPage));

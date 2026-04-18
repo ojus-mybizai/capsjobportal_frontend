@@ -13,8 +13,48 @@ const MASTER_KEYS = [
   "degree",
 ];
 
+const CACHE_KEY = "caps:masters:v1";
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 min
+
+function readCache() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.savedAt !== "number") return null;
+    if (Date.now() - parsed.savedAt > CACHE_TTL_MS) return null;
+    if (!parsed.masters || typeof parsed.masters !== "object") return null;
+    return parsed.masters;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(masters) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ savedAt: Date.now(), masters })
+    );
+  } catch {
+    // sessionStorage full or disabled — silently ignore
+  }
+}
+
+function clearCache() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export const useMastersStore = create((set, get) => ({
-  masters: {},
+  masters: readCache() || {},
   loading: false,
 
   async loadMaster(name) {
@@ -35,7 +75,9 @@ export const useMastersStore = create((set, get) => ({
         }
       }
 
-      set({ masters: { ...get().masters, [name]: items }, loading: false });
+      const nextMasters = { ...get().masters, [name]: items };
+      set({ masters: nextMasters, loading: false });
+      writeCache(nextMasters);
       return items;
     } catch (error) {
       set({ loading: false });
@@ -44,16 +86,18 @@ export const useMastersStore = create((set, get) => ({
   },
 
   async preloadAll() {
-    await Promise.all(MASTER_KEYS.map((key) => get().loadMaster(key)));
+    const missing = MASTER_KEYS.filter((key) => !get().masters[key]);
+    if (missing.length === 0) return;
+    await Promise.all(missing.map((key) => get().loadMaster(key)));
   },
 
   setMasterItems(name, items) {
-    set({
-      masters: {
-        ...get().masters,
-        [name]: Array.isArray(items) ? items : [],
-      },
-    });
+    const nextMasters = {
+      ...get().masters,
+      [name]: Array.isArray(items) ? items : [],
+    };
+    set({ masters: nextMasters });
+    writeCache(nextMasters);
   },
 
   getOptions(name) {
@@ -67,7 +111,14 @@ export const useMastersStore = create((set, get) => ({
   async createMasterItem(name, payload) {
     const created = await createMaster(name, payload);
     const current = get().masters[name] || [];
-    set({ masters: { ...get().masters, [name]: [...current, created] } });
+    const nextMasters = { ...get().masters, [name]: [...current, created] };
+    set({ masters: nextMasters });
+    writeCache(nextMasters);
     return created;
+  },
+
+  resetMasters() {
+    clearCache();
+    set({ masters: {} });
   },
 }));

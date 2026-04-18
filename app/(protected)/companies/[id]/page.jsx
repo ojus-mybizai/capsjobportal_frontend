@@ -3,15 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useUIStore } from "@/stores/ui";
-import { useCompaniesStore } from "@/stores/companies";
+import {
+  useCompany,
+  useUpdateCompany,
+  useUploadCompanyMedia,
+  useCreateCompanyPayment,
+} from "@/hooks/useCompanies";
 import CompanyForm from "@/components/forms/CompanyForm";
 import DetailShell from "@/components/ui/DetailShell";
 import StatusPill from "@/components/ui/StatusPill";
-import {
-  getCompany,
-  updateCompany,
-  uploadCompanyMedia,
-} from "@/services/companies";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Table from "@/components/table/Table";
@@ -36,19 +36,25 @@ export default function CompanyDetailPage() {
 
   const [tab, setTab] = useState("overview");
 
-  const [loading, setLoading] = useState(true);
-  const [company, setCompany] = useState(null);
+  const companyQuery = useCompany(id);
+  const company = companyQuery.data || null;
+  const loading = companyQuery.isLoading;
 
-  const [infoSubmitting, setInfoSubmitting] = useState(false);
+  const updateCompanyMutation = useUpdateCompany();
+  const uploadMediaMutation = useUploadCompanyMedia();
+  const createPaymentMutation = useCreateCompanyPayment();
 
-  const [verificationSubmitting, setVerificationSubmitting] = useState(false);
+  const infoSubmitting = updateCompanyMutation.isPending;
+  const verificationSubmitting = updateCompanyMutation.isPending;
+  const statusSubmitting = updateCompanyMutation.isPending;
+  const uploadingFiles = uploadMediaMutation.isPending;
+  const savingPayment = createPaymentMutation.isPending;
+
   const [verificationStatus, setVerificationStatus] = useState("false");
   const [visitingCardFile, setVisitingCardFile] = useState(null);
   const [frontImageFile, setFrontImageFile] = useState(null);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   const [companyStatus, setCompanyStatus] = useState("FREE");
-  const [statusSubmitting, setStatusSubmitting] = useState(false);
 
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -56,9 +62,24 @@ export default function CompanyDetailPage() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
   const [paymentRemarks, setPaymentRemarks] = useState("");
-  const [savingPayment, setSavingPayment] = useState(false);
-  const paymentsByCompanyId = useCompaniesStore((state) => state.paymentsByCompanyId);
-  const createPayment = useCompaniesStore((state) => state.createPayment);
+
+  // Sync local form state when company data arrives or changes
+  useEffect(() => {
+    if (!company) return;
+    setVerificationStatus(company.verification_status ? "true" : "false");
+    setCompanyStatus(company.company_status || "FREE");
+  }, [company]);
+
+  // Surface query errors as toasts
+  useEffect(() => {
+    if (!companyQuery.isError) return;
+    pushToast({
+      title: "Failed to load company",
+      description:
+        (companyQuery.error && companyQuery.error.message) ||
+        "An error occurred while loading the company.",
+    });
+  }, [companyQuery.isError, companyQuery.error, pushToast]);
 
   function toAssetUrl(url) {
     if (!url || typeof url !== "string") return "";
@@ -73,40 +94,9 @@ export default function CompanyDetailPage() {
     setPageMetadata("Company details", "View and edit company");
   }, [setPageMetadata]);
 
-  useEffect(() => {
-    if (!id) return;
-
-    let active = true;
-    async function load() {
-      setLoading(true);
-      try {
-        const data = await getCompany(id);
-        console.log(data)
-        if (!active) return;
-        setCompany(data);
-        setVerificationStatus(data.verification_status ? "true" : "false");
-        setCompanyStatus(data.company_status || "FREE");
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load company",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading the company.",
-        });
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      active = false;
-    };
-  }, [id, pushToast]);
 
   const paidForPayments = companyStatus === "PAID" || company?.company_status === "PAID";
 
-  // payments are included in getCompany; we only rely on cached store list if it exists (e.g., after a create)
   const infoInitialValues = company
     ? {
         name: company.name || "",
@@ -123,23 +113,21 @@ export default function CompanyDetailPage() {
     : null;
 
   async function handleInfoSubmit(values, { setError }) {
-    setInfoSubmitting(true);
-    try {
-      const payload = {
-        name: values.name,
-        category_id: values.category_id || undefined,
-        location_area_id: values.location_area_id || undefined,
-        address: values.address || undefined,
-        location_link: values.location_link || undefined,
-        contact_person: values.contact_person || undefined,
-        contact_number: values.contact_number || undefined,
-        alternate_number: values.alternate_number || undefined,
-        email: values.email?.trim() ? values.email.trim() : undefined,
-        notes: values.notes || undefined,
-      };
+    const payload = {
+      name: values.name,
+      category_id: values.category_id || undefined,
+      location_area_id: values.location_area_id || undefined,
+      address: values.address || undefined,
+      location_link: values.location_link || undefined,
+      contact_person: values.contact_person || undefined,
+      contact_number: values.contact_number || undefined,
+      alternate_number: values.alternate_number || undefined,
+      email: values.email?.trim() ? values.email.trim() : undefined,
+      notes: values.notes || undefined,
+    };
 
-      const updated = await updateCompany(id, payload);
-      setCompany(updated);
+    try {
+      await updateCompanyMutation.mutateAsync({ id, payload });
       pushToast({
         title: "Company updated",
         description: "The company information was updated successfully.",
@@ -165,8 +153,6 @@ export default function CompanyDetailPage() {
             "An error occurred while updating the company.",
         });
       }
-    } finally {
-      setInfoSubmitting(false);
     }
   }
 
@@ -184,13 +170,12 @@ export default function CompanyDetailPage() {
 
   async function handleVerificationSave() {
     if (!company) return;
-    setVerificationSubmitting(true);
     try {
       const nextVerified = verificationStatus === "true";
-      const updated = await updateCompany(id, {
-        verification_status: nextVerified,
+      await updateCompanyMutation.mutateAsync({
+        id,
+        payload: { verification_status: nextVerified },
       });
-      setCompany(updated);
       pushToast({
         title: "Verification updated",
         description: "The company verification status was updated.",
@@ -202,8 +187,6 @@ export default function CompanyDetailPage() {
           (error && error.message) ||
           "An error occurred while updating verification status.",
       });
-    } finally {
-      setVerificationSubmitting(false);
     }
   }
 
@@ -227,9 +210,8 @@ export default function CompanyDetailPage() {
       formData.append("front_image", frontImageFile);
     }
 
-    setUploadingFiles(true);
     try {
-      await uploadCompanyMedia(id, formData);
+      await uploadMediaMutation.mutateAsync({ id, formData });
       pushToast({
         title: "Files uploaded",
         description: "Company documents were uploaded successfully.",
@@ -243,19 +225,16 @@ export default function CompanyDetailPage() {
           (error && error.message) ||
           "An error occurred while uploading company files.",
       });
-    } finally {
-      setUploadingFiles(false);
     }
   }
 
   async function handleStatusSave() {
     if (!company) return;
-    setStatusSubmitting(true);
     try {
-      const updated = await updateCompany(id, {
-        company_status: companyStatus || undefined,
+      await updateCompanyMutation.mutateAsync({
+        id,
+        payload: { company_status: companyStatus || undefined },
       });
-      setCompany(updated);
       pushToast({
         title: "Company status updated",
         description: "The company status was updated successfully.",
@@ -267,8 +246,6 @@ export default function CompanyDetailPage() {
           (error && error.message) ||
           "An error occurred while updating company status.",
       });
-    } finally {
-      setStatusSubmitting(false);
     }
   }
 
@@ -312,7 +289,6 @@ export default function CompanyDetailPage() {
       return;
     }
 
-    setSavingPayment(true);
     try {
       const payload = {
         amount: amountNumber,
@@ -320,7 +296,7 @@ export default function CompanyDetailPage() {
         remarks: paymentRemarks ? paymentRemarks.trim() : undefined,
       };
 
-      await createPayment(id, payload);
+      await createPaymentMutation.mutateAsync({ companyId: id, payload });
       setPaymentAmount("");
       setPaymentDate("");
       setPaymentRemarks("");
@@ -344,8 +320,6 @@ export default function CompanyDetailPage() {
             "An error occurred while creating the company payment.",
         });
       }
-    } finally {
-      setSavingPayment(false);
     }
   }
 
@@ -395,11 +369,7 @@ export default function CompanyDetailPage() {
     </div>
   );
 
-  const paymentsList = Array.isArray(paymentsByCompanyId[id])
-    ? paymentsByCompanyId[id]
-    : Array.isArray(company?.payments)
-    ? company.payments
-    : [];
+  const paymentsList = Array.isArray(company?.payments) ? company.payments : [];
 
   return (
     <>

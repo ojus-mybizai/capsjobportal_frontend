@@ -273,40 +273,19 @@ function DashboardPageInner() {
     replaceParams({ range, start_date: computed.from, end_date: computed.to });
   }
 
-  async function loadPendingDues(dueDateParam) {
-    const iso =
-      dueDateParam && dayjs(dueDateParam).isValid()
-        ? dayjs(dueDateParam).endOf("day").toISOString()
-        : dayjs().endOf("month").toISOString();
-    setLoadingPendingDues(true);
-    try {
-      const result = await api.get("payments/pending-dues", { params: { due_before: iso } });
-      const items = Array.isArray(result?.data)
-        ? result.data
-        : Array.isArray(result?.items)
-          ? result.items
-          : Array.isArray(result)
-            ? result
-            : [];
-      const totals = items.reduce(
-        (acc, it) => {
-          const bal = Number(it?.balance) || 0;
-          acc.total_due += bal;
-          if (it?.source === "JOC_FEE_PENDING") acc.candidate_due += bal;
-          else acc.company_due += bal;
-          return acc;
-        },
-        { total_due: 0, candidate_due: 0, company_due: 0 }
-      );
-      setPendingDues({ ...totals, items });
-    } catch (error) {
-      pushToast({
-        title: "Failed to load pending dues",
-        description: (error && error.message) || "Could not load pending dues.",
-      });
-    } finally {
-      setLoadingPendingDues(false);
+  function applyPendingDuesPayload(payload) {
+    if (!payload) {
+      setPendingDues(null);
+      return;
     }
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    const totals = payload.totals || {};
+    setPendingDues({
+      total_due: Number(totals.total_due) || 0,
+      candidate_due: Number(totals.candidate_due) || 0,
+      company_due: Number(totals.company_due) || 0,
+      items,
+    });
   }
 
   function openCustomPicker() {
@@ -359,25 +338,32 @@ function DashboardPageInner() {
     if (rangeParam) return;
     if (startDateParam || endDateParam) return;
     applyRange("this_month");
-    loadPendingDues(endOfMonth);
   }, [rangeParam, startDateParam, endDateParam]);
 
   const startDateTime = startDateParam ? `${startDateParam}T00:00:00` : undefined;
   const endDateTime = endDateParam ? `${endDateParam}T23:59:59` : undefined;
-  const dateParams = {
-    ...(startDateTime ? { start_date: startDateTime } : {}),
-    ...(endDateTime ? { end_date: endDateTime } : {}),
-  };
-  const dateKey = `${startDateParam}|${endDateParam}`;
+  const dateKey = `${startDateParam}|${endDateParam}|${dueBefore}`;
 
   useEffect(() => {
     let active = true;
-    async function loadSummary() {
+    async function loadAll() {
+      const dueIso =
+        dueBefore && dayjs(dueBefore).isValid()
+          ? dayjs(dueBefore).endOf("day").toISOString()
+          : dayjs().endOf("month").toISOString();
       setLoadingSummary(true);
+      setLoadingPendingDues(true);
       try {
-        const data = await api.get("reports/dashboard", { params: dateParams });
+        const data = await api.get("reports/dashboard-full", {
+          params: {
+            ...(startDateTime ? { start_date: startDateTime } : {}),
+            ...(endDateTime ? { end_date: endDateTime } : {}),
+            due_before: dueIso,
+          },
+        });
         if (!active) return;
-        setSummary(data || null);
+        setSummary(data?.summary || null);
+        applyPendingDuesPayload(data?.pending_dues || null);
       } catch (error) {
         if (!active) return;
         pushToast({
@@ -385,18 +371,17 @@ function DashboardPageInner() {
           description: (error && error.message) || "An error occurred while loading dashboard data.",
         });
       } finally {
-        if (active) setLoadingSummary(false);
+        if (active) {
+          setLoadingSummary(false);
+          setLoadingPendingDues(false);
+        }
       }
     }
-    loadSummary();
+    loadAll();
     return () => {
       active = false;
     };
   }, [dateKey, pushToast]);
-
-  useEffect(() => {
-    loadPendingDues(dueBefore);
-  }, [dueBefore]);
 
   const companiesPaid = safeNumber(summary?.companies?.paid);
   const companiesFree = safeNumber(summary?.companies?.free);

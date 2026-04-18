@@ -16,6 +16,7 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import StatusPill from "@/components/ui/StatusPill";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
+import Spinner from "@/components/ui/Spinner";
 
 const PAGE_SIZE = 10;
 
@@ -134,6 +135,7 @@ function InterviewsPageInner() {
   useEffect(() => {
     const t = setTimeout(() => {
       const next = (query || "").trim();
+      if (next === (qParam || "")) return;
       const params = new URLSearchParams(searchParamsString);
       if (next) params.set("q", next);
       else params.delete("q");
@@ -143,7 +145,7 @@ function InterviewsPageInner() {
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [query, router, pathname, searchParamsString]);
+  }, [query, qParam, router, pathname, searchParamsString]);
 
   function patchParams(patch, { resetPage = true } = {}) {
     const params = new URLSearchParams(searchParamsString);
@@ -571,7 +573,7 @@ function InterviewsPageInner() {
           ) : null}
 
           <div className="flex items-center justify-between gap-2 pt-1">
-            <div className="text-xs text-slate-500">{loading ? "Loading…" : null}</div>
+            <div className="text-xs text-slate-500">{loading ? <Spinner label="Loading" /> : null}</div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
               <span>Showing page {page}</span>
               <span className="h-1 w-1 rounded-full bg-slate-300" />
@@ -587,6 +589,7 @@ function InterviewsPageInner() {
         page={page}
         limit={PAGE_SIZE}
         total={total || 0}
+        loading={loading}
         onPageChange={(nextPage) => {
           const params = new URLSearchParams(searchParamsString);
           params.set("page", String(nextPage));

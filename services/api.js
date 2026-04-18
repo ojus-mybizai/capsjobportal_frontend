@@ -1,5 +1,6 @@
 import axios from "axios";
 import { normalizeAxiosError, buildApiErrorFromResponse } from "../utils/apiError";
+import { cachedRequest, clearRequestCache } from "../utils/requestCache";
 
 const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
 
@@ -161,4 +162,53 @@ api.interceptors.response.use(
 
 export function handleApiError(error) {
   return normalizeAxiosError(error);
+}
+
+// ---- GET dedupe + opt-in TTL cache ----
+// Concurrent identical GETs share a single in-flight promise. Mutations and
+// auth endpoints bypass entirely. Pass `cache: { ttlMs: N }` in config to opt
+// into time-window caching backed by utils/requestCache.
+
+const inflightGets = new Map();
+
+function dedupeKey(url, config) {
+  const fullUrl = String(url || "").trim();
+  const params = config && config.params ? serializeParams(config.params) : "";
+  return `GET ${fullUrl}?${params}`;
+}
+
+function shouldSkipDedupe(url, config) {
+  if (config && config.dedupe === false) return true;
+  const u = String(url || "");
+  return u.includes("auth/login") || u.includes("auth/refresh");
+}
+
+const _rawGet = api.get.bind(api);
+
+api.get = function dedupedGet(url, config) {
+  if (shouldSkipDedupe(url, config)) {
+    return _rawGet(url, config);
+  }
+
+  const key = dedupeKey(url, config);
+  const ttlMs = config && config.cache && Number(config.cache.ttlMs);
+
+  if (ttlMs && ttlMs > 0) {
+    return cachedRequest(`axios:${key}`, () => _rawGet(url, config), { ttlMs });
+  }
+
+  const existing = inflightGets.get(key);
+  if (existing) return existing;
+
+  const promise = _rawGet(url, config).finally(() => {
+    inflightGets.delete(key);
+  });
+  inflightGets.set(key, promise);
+  return promise;
+};
+
+export function invalidateApiCache(prefix) {
+  // Clears TTL cache entries (those created via cache: { ttlMs }) matching
+  // the given URL prefix. Pass nothing to clear all cached entries.
+  clearRequestCache(prefix ? `axios:GET ${prefix}` : null);
 }

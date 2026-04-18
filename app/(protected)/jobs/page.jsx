@@ -13,6 +13,7 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import StatusPill from "@/components/ui/StatusPill";
 import AsyncSearchSelect from "@/components/ui/AsyncSearchSelect";
+import Spinner from "@/components/ui/Spinner";
 
 const PAGE_SIZE = 10;
 
@@ -705,7 +706,7 @@ function JobsPageInner() {
           ) : null}
 
           <div className="flex items-center justify-between gap-2 pt-1">
-            <div className="text-xs text-slate-500">{loading ? "Loading…" : null}</div>
+            <div className="text-xs text-slate-500">{loading ? <Spinner label="Loading" /> : null}</div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
               <span>Showing page {page}</span>
               <span className="h-1 w-1 rounded-full bg-slate-300" />
@@ -720,6 +721,7 @@ function JobsPageInner() {
         page={page}
         limit={PAGE_SIZE}
         total={total}
+        loading={loading}
         onPageChange={(nextPage) => {
           const params = new URLSearchParams(searchParamsString);
           params.set("page", String(nextPage));

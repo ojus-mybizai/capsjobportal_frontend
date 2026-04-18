@@ -5,14 +5,18 @@ import { useRouter, useParams } from "next/navigation";
 import dayjs from "dayjs";
 import { formatDateOnly, toDateInputValue } from "@/utils/date";
 import { useUIStore } from "@/stores/ui";
-import { useCandidatesStore } from "@/stores/candidates";
-import CandidateForm from "@/components/forms/CandidateForm";
 import {
-  updateCandidate,
-  uploadCandidateFile,
-  changeCandidateStatus,
-  listCandidateAppliedJobs,
-} from "@/services/candidates";
+  useCandidate,
+  useCandidateAppliedJobs,
+  useCandidatePaymentsList,
+  useChangeCandidateStatus,
+  useCreateCandidatePayment,
+  useDeleteCandidatePayment,
+  useUpdateCandidate,
+  useUpdateCandidatePayment,
+  useUploadCandidateFile,
+} from "@/hooks/useCandidates";
+import CandidateForm from "@/components/forms/CandidateForm";
 import Button from "@/components/ui/Button";
 import DetailShell from "@/components/ui/DetailShell";
 import StatusPill from "@/components/ui/StatusPill";
@@ -26,17 +30,30 @@ export default function CandidateDetailPage() {
   const router = useRouter();
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
-  const getCandidate = useCandidatesStore((state) => state.get);
-  const updateCandidateInStore = useCandidatesStore((state) => state.update);
 
   const [tab, setTab] = useState("overview");
 
-  const [loading, setLoading] = useState(true);
-  const [candidate, setCandidate] = useState(null);
-  const [infoSubmitting, setInfoSubmitting] = useState(false);
+  const candidateQuery = useCandidate(id);
+  const candidate = candidateQuery.data || null;
+  const loading = candidateQuery.isLoading;
+
+  const updateCandidateMutation = useUpdateCandidate();
+  const changeStatusMutation = useChangeCandidateStatus();
+  const uploadFileMutation = useUploadCandidateFile();
+  const createPaymentMutation = useCreateCandidatePayment();
+  const updatePaymentMutation = useUpdateCandidatePayment();
+  const deletePaymentMutation = useDeleteCandidatePayment();
+
+  const infoSubmitting = updateCandidateMutation.isPending;
+  const statusSubmitting = changeStatusMutation.isPending;
+  const uploadingDocuments = uploadFileMutation.isPending;
+  const savingRegPayment =
+    createPaymentMutation.isPending || updatePaymentMutation.isPending;
+  const savingNewPayment = createPaymentMutation.isPending;
+  const updatingTotalFee = updateCandidateMutation.isPending;
+
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusValue, setStatusValue] = useState("REGISTERED");
-  const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [jocTotalFee, setJocTotalFee] = useState("");
   const [jocPaymentAmount, setJocPaymentAmount] = useState("");
   const [jocPaymentDate, setJocPaymentDate] = useState("");
@@ -44,33 +61,64 @@ export default function CandidateDetailPage() {
   const [jocDueDate, setJocDueDate] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
-  const [uploadingDocuments, setUploadingDocuments] = useState(false);
   const [resumeModalOpen, setResumeModalOpen] = useState(false);
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
-  const [appliedJobs, setAppliedJobs] = useState([]);
-  const [loadingAppliedJobs, setLoadingAppliedJobs] = useState(false);
 
-  const paymentsByCandidateId = useCandidatesStore(
-    (state) => state.paymentsByCandidateId
+  const status = candidate?.status || "REGISTERED";
+  const isRegistered = status === "REGISTERED";
+  const isJoc = status === "JOC";
+
+  const appliedJobsQuery = useCandidateAppliedJobs(id, {
+    enabled: !!id && tab === "applied-jobs",
+  });
+  const appliedJobs = appliedJobsQuery.data || [];
+  const loadingAppliedJobs = appliedJobsQuery.isFetching;
+
+  const paymentsQuery = useCandidatePaymentsList(
+    isRegistered || isJoc ? id : undefined
   );
-  const loadingPayments = useCandidatesStore((state) => state.loadingPayments);
-  const listPayments = useCandidatesStore((state) => state.listPayments);
-  const createPayment = useCandidatesStore((state) => state.createPayment);
-  const updatePayment = useCandidatesStore((state) => state.updatePayment);
-  const deletePayment = useCandidatesStore((state) => state.deletePayment);
+  const payments = paymentsQuery.data?.items || [];
+  const loadingPayments = paymentsQuery.isFetching;
 
   const [regAmount, setRegAmount] = useState("");
   const [regDate, setRegDate] = useState("");
   const [regRemarks, setRegRemarks] = useState("");
-  const [savingRegPayment, setSavingRegPayment] = useState(false);
 
   const [newPaymentAmount, setNewPaymentAmount] = useState("");
   const [newPaymentDate, setNewPaymentDate] = useState("");
   const [newPaymentRemarks, setNewPaymentRemarks] = useState("");
-  const [savingNewPayment, setSavingNewPayment] = useState(false);
 
   const [totalFeeInput, setTotalFeeInput] = useState("");
-  const [updatingTotalFee, setUpdatingTotalFee] = useState(false);
+
+  // Sync local form state when candidate data arrives
+  useEffect(() => {
+    if (!candidate) return;
+    setStatusValue(candidate.status || "REGISTERED");
+    setTotalFeeInput(
+      typeof candidate.total_fee === "number" ? String(candidate.total_fee) : ""
+    );
+  }, [candidate]);
+
+  // Surface query errors as toasts
+  useEffect(() => {
+    if (!candidateQuery.isError) return;
+    pushToast({
+      title: "Failed to load candidate",
+      description:
+        (candidateQuery.error && candidateQuery.error.message) ||
+        "An error occurred while loading the candidate.",
+    });
+  }, [candidateQuery.isError, candidateQuery.error, pushToast]);
+
+  useEffect(() => {
+    if (!appliedJobsQuery.isError) return;
+    pushToast({
+      title: "Failed to load applied jobs",
+      description:
+        (appliedJobsQuery.error && appliedJobsQuery.error.message) ||
+        "Could not load applied jobs.",
+    });
+  }, [appliedJobsQuery.isError, appliedJobsQuery.error, pushToast]);
 
   const genderText = (candidate?.gender || "").toString().toUpperCase();
   const employmentText = (candidate?.employment_status || "")
@@ -156,97 +204,6 @@ export default function CandidateDetailPage() {
     setPageMetadata("Candidate details", "View and edit candidate");
   }, [setPageMetadata]);
 
-  useEffect(() => {
-    if (!id) return;
-
-    let active = true;
-    async function load() {
-      setLoading(true);
-      try {
-        const data = await getCandidate(id);
-        console.log(data)
-        if (!active) return;
-        setCandidate(data);
-        setStatusValue(data.status || "REGISTERED");
-        if (typeof data.total_fee === "number") {
-          setTotalFeeInput(String(data.total_fee));
-        } else {
-          setTotalFeeInput("");
-        }
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load candidate",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading the candidate.",
-        });
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      active = false;
-    };
-  }, [id, pushToast]);
-
-  useEffect(() => {
-    if (tab !== "applied-jobs" || !id) return;
-    let active = true;
-    async function loadApplied() {
-      setLoadingAppliedJobs(true);
-      try {
-        const data = await listCandidateAppliedJobs(id);
-        if (!active) return;
-        setAppliedJobs(Array.isArray(data) ? data : []);
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load applied jobs",
-          description: (error && error.message) || "Could not load applied jobs.",
-        });
-        setAppliedJobs([]);
-      } finally {
-        if (active) setLoadingAppliedJobs(false);
-      }
-    }
-    loadApplied();
-    return () => {
-      active = false;
-    };
-  }, [tab, id, pushToast]);
-
-  const payments = paymentsByCandidateId[id] || [];
-  const status = candidate?.status || "REGISTERED";
-  const isRegistered = status === "REGISTERED";
-  const isJoc = status === "JOC";
-
-  useEffect(() => {
-    if (!id || !candidate) return;
-    if (!isRegistered && !isJoc) return;
-    if (tab !== "payments" && !(tab === "overview" && isJoc)) return;
-
-    let active = true;
-    async function loadPaymentsSafe() {
-      try {
-        await listPayments(id, { limit: 100 });
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load payments",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading candidate payments.",
-        });
-      }
-    }
-
-    loadPaymentsSafe();
-    return () => {
-      active = false;
-    };
-  }, [id, candidate, isRegistered, isJoc, tab, listPayments, pushToast]);
 
   const registrationPayment = isRegistered && payments.length > 0 ? payments[0] : null;
 
@@ -291,7 +248,6 @@ export default function CandidateDetailPage() {
     : null;
 
   async function handleInfoSubmit(values, { setError }) {
-    setInfoSubmitting(true);
     try {
       const skillsArray = Array.isArray(values.skills)
         ? values.skills.filter((item) => !!item && String(item).trim())
@@ -325,10 +281,7 @@ export default function CandidateDetailPage() {
         degree: degreeArray.length > 0 ? degreeArray : undefined,
       };
 
-      console.log(payload)
-
-      const updated = await updateCandidateInStore(id, payload);
-      setCandidate(updated);
+      await updateCandidateMutation.mutateAsync({ id, payload });
 
       pushToast({
         title: "Candidate updated",
@@ -362,8 +315,6 @@ export default function CandidateDetailPage() {
             "An error occurred while updating the candidate.",
         });
       }
-    } finally {
-      setInfoSubmitting(false);
     }
   }
 
@@ -420,7 +371,6 @@ export default function CandidateDetailPage() {
         return;
       }
     }
-    setStatusSubmitting(true);
     try {
       const payload =
         statusValue === "JOC"
@@ -438,8 +388,7 @@ export default function CandidateDetailPage() {
             }
           : { status: statusValue };
 
-      const updated = await changeCandidateStatus(id, payload);
-      setCandidate(updated);
+      await changeStatusMutation.mutateAsync({ id, payload });
       pushToast({
         title: "Candidate status updated",
         description: "The candidate status was updated successfully.",
@@ -460,8 +409,6 @@ export default function CandidateDetailPage() {
             "An error occurred while updating the candidate status.",
         });
       }
-    } finally {
-      setStatusSubmitting(false);
     }
   }
 
@@ -496,19 +443,14 @@ export default function CandidateDetailPage() {
       formData.append("photo", photoFile);
     }
 
-    setUploadingDocuments(true);
     try {
-      await uploadCandidateFile(id, formData);
+      await uploadFileMutation.mutateAsync({ id, formData });
       pushToast({
         title: "Documents uploaded",
         description: "Candidate documents were uploaded successfully.",
       });
       setResumeFile(null);
       setPhotoFile(null);
-
-      // Refresh from store (already updated by upload)
-      const refreshed = await getCandidate(id, { force: true });
-      setCandidate(refreshed);
     } catch (error) {
       pushToast({
         title: "Failed to upload documents",
@@ -516,8 +458,6 @@ export default function CandidateDetailPage() {
           (error && error.message) ||
           "An error occurred while uploading candidate documents.",
       });
-    } finally {
-      setUploadingDocuments(false);
     }
   }
 
@@ -553,7 +493,6 @@ export default function CandidateDetailPage() {
       return;
     }
 
-    setSavingRegPayment(true);
     try {
       const payload = {
         amount: amountNumber,
@@ -562,15 +501,14 @@ export default function CandidateDetailPage() {
       };
 
       if (registrationPayment) {
-        await updatePayment(registrationPayment.id, payload);
+        await updatePaymentMutation.mutateAsync({
+          paymentId: registrationPayment.id,
+          payload,
+          candidateId: id,
+        });
       } else {
-        await createPayment(id, payload);
+        await createPaymentMutation.mutateAsync({ candidateId: id, payload });
       }
-
-      await listPayments(id, { limit: 100 });
-      // Refresh from store (already updated by upload)
-      const refreshed = await getCandidate(id, { force: true });
-      setCandidate(refreshed);
 
       pushToast({
         title: "Registration payment saved",
@@ -583,19 +521,16 @@ export default function CandidateDetailPage() {
           (error && error.message) ||
           "An error occurred while saving the registration payment.",
       });
-    } finally {
-      setSavingRegPayment(false);
     }
   }
 
   async function handleDeleteRegistrationPayment() {
     if (!registrationPayment) return;
     try {
-      await deletePayment(registrationPayment.id);
-      await listPayments(id, { limit: 100 });
-      // Refresh from store (already updated by upload)
-      const refreshed = await getCandidate(id, { force: true });
-      setCandidate(refreshed);
+      await deletePaymentMutation.mutateAsync({
+        paymentId: registrationPayment.id,
+        candidateId: id,
+      });
       pushToast({
         title: "Payment deleted",
         description: "The registration payment was deleted successfully.",
@@ -649,7 +584,6 @@ export default function CandidateDetailPage() {
       return;
     }
 
-    setSavingNewPayment(true);
     try {
       const payload = {
         amount: amountNumber,
@@ -657,15 +591,10 @@ export default function CandidateDetailPage() {
         remarks: newPaymentRemarks || undefined,
       };
 
-      await createPayment(id, payload);
+      await createPaymentMutation.mutateAsync({ candidateId: id, payload });
       setNewPaymentAmount("");
       setNewPaymentDate("");
       setNewPaymentRemarks("");
-
-      await listPayments(id, { limit: 100 });
-      // Refresh from store (already updated by upload)
-      const refreshed = await getCandidate(id, { force: true });
-      setCandidate(refreshed);
 
       pushToast({
         title: "Payment added",
@@ -678,18 +607,12 @@ export default function CandidateDetailPage() {
           (error && error.message) ||
           "An error occurred while creating the candidate payment.",
       });
-    } finally {
-      setSavingNewPayment(false);
     }
   }
 
   async function handleDeletePaymentRow(paymentId) {
     try {
-      await deletePayment(paymentId);
-      await listPayments(id, { limit: 100 });
-      // Refresh from store (already updated by upload)
-      const refreshed = await getCandidate(id, { force: true });
-      setCandidate(refreshed);
+      await deletePaymentMutation.mutateAsync({ paymentId, candidateId: id });
       pushToast({
         title: "Payment deleted",
         description: "The candidate payment was deleted successfully.",
@@ -717,10 +640,11 @@ export default function CandidateDetailPage() {
       return;
     }
 
-    setUpdatingTotalFee(true);
     try {
-      const updated = await updateCandidate(id, { total_fee: totalFeeNumber });
-      setCandidate(updated);
+      await updateCandidateMutation.mutateAsync({
+        id,
+        payload: { total_fee: totalFeeNumber },
+      });
       pushToast({
         title: "Total fee updated",
         description: "The total fee was updated successfully.",
@@ -732,8 +656,6 @@ export default function CandidateDetailPage() {
           (error && error.message) ||
           "An error occurred while updating the total fee.",
       });
-    } finally {
-      setUpdatingTotalFee(false);
     }
   }
 

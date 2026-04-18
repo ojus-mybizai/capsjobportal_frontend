@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUIStore } from "@/stores/ui";
 import { useMastersStore } from "@/stores/masters";
-import { deleteCandidate, listCandidates } from "@/services/candidates";
+import { useCandidatesList, useDeleteCandidate } from "@/hooks/useCandidates";
 import PaginatedTable from "@/components/table/PaginatedTable";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
+import Spinner from "@/components/ui/Spinner";
 
 const PAGE_SIZE = 10;
 
@@ -31,11 +32,7 @@ function CandidatesPageInner() {
   const pushToast = useUIStore((state) => state.pushToast);
   const getOptions = useMastersStore((state) => state.getOptions);
 
-  const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [locationMap, setLocationMap] = useState({});
-  const [refreshTick, setRefreshTick] = useState(0);
 
   const qParam = searchParams.get("q") || "";
   const emailParam = searchParams.get("email") || "";
@@ -62,30 +59,6 @@ function CandidatesPageInner() {
   const pageParamRaw = searchParams.get("page");
   const page = pageParamRaw ? Math.max(1, Number(pageParamRaw) || 1) : 1;
 
-  const filtersKey = [
-    qParam,
-    emailParam,
-    mobileNumberParam,
-    statusParam,
-    employmentStatusParam,
-    genderParam,
-    qualificationParam,
-    locationAreaIdParam,
-    expectedSalaryMinParam,
-    expectedSalaryMaxParam,
-    experienceMinParam,
-    experienceMaxParam,
-    createdFromParam,
-    createdToParam,
-    createdByParam,
-    createdByIsNullParam,
-    hasResumeParam,
-    hasPhotoParam,
-    isActiveParam,
-    sortByParam,
-    orderParam,
-    (skillsParam || []).join(","),
-  ].join("|");
 
   const [query, setQuery] = useState(qParam);
   const [email, setEmail] = useState(emailParam);
@@ -373,6 +346,8 @@ function CandidatesPageInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
+  const deleteCandidateMutation = useDeleteCandidate();
+
   async function handleDeleteCandidate(candidate) {
     const id = candidate && candidate.id != null ? String(candidate.id) : "";
     const name =
@@ -387,12 +362,11 @@ function CandidatesPageInner() {
     if (!confirmed) return;
 
     try {
-      await deleteCandidate(id);
+      await deleteCandidateMutation.mutateAsync(id);
       pushToast({
         title: "Candidate deleted",
         description: "The candidate was deleted successfully.",
       });
-      setRefreshTick(Date.now());
     } catch (error) {
       pushToast({
         title: "Failed to delete candidate",
@@ -415,86 +389,77 @@ function CandidatesPageInner() {
     setLocationMap(locMap);
   }, [getOptions]);
 
+  const filters = useMemo(
+    () => ({
+      page,
+      limit: PAGE_SIZE,
+      q: qParam || undefined,
+      email: emailParam || undefined,
+      mobile_number: mobileNumberParam || undefined,
+      status: statusParam || undefined,
+      employment_status: employmentStatusParam || undefined,
+      gender: genderParam || undefined,
+      qualification: qualificationParam || undefined,
+      location_area_id: locationAreaIdParam || undefined,
+      expected_salary_min: expectedSalaryMinParam || undefined,
+      expected_salary_max: expectedSalaryMaxParam || undefined,
+      experience_min: experienceMinParam || undefined,
+      experience_max: experienceMaxParam || undefined,
+      skills: Array.isArray(skillsParam) && skillsParam.length ? skillsParam : undefined,
+      created_by: viaLinkChecked ? undefined : createdByParam || undefined,
+      created_by_is_null: viaLinkChecked ? true : undefined,
+      has_resume:
+        hasResumeParam === "true" ? true : hasResumeParam === "false" ? false : undefined,
+      has_photo:
+        hasPhotoParam === "true" ? true : hasPhotoParam === "false" ? false : undefined,
+      created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
+      created_to: createdToParam ? `${createdToParam}T23:59:59` : undefined,
+      is_active:
+        isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined,
+      sort_by: sortByParam || undefined,
+      order: orderParam || undefined,
+    }),
+    [
+      page,
+      qParam,
+      emailParam,
+      mobileNumberParam,
+      statusParam,
+      employmentStatusParam,
+      genderParam,
+      qualificationParam,
+      locationAreaIdParam,
+      expectedSalaryMinParam,
+      expectedSalaryMaxParam,
+      experienceMinParam,
+      experienceMaxParam,
+      skillsParam.join(","),
+      viaLinkChecked,
+      createdByParam,
+      hasResumeParam,
+      hasPhotoParam,
+      createdFromParam,
+      createdToParam,
+      isActiveParam,
+      sortByParam,
+      orderParam,
+    ]
+  );
+
+  const candidatesQuery = useCandidatesList(filters);
+  const rows = candidatesQuery.data?.items ?? [];
+  const total = candidatesQuery.data?.total ?? 0;
+  const loading = candidatesQuery.isFetching;
+
   useEffect(() => {
-    let active = true;
-    async function load() {
-      setLoading(true);
-      try {
-        const result = await listCandidates({
-          page,
-          limit: PAGE_SIZE,
-          q: qParam || undefined,
-          email: emailParam || undefined,
-          mobile_number: mobileNumberParam || undefined,
-          status: statusParam || undefined,
-          employment_status: employmentStatusParam || undefined,
-          gender: genderParam || undefined,
-          qualification: qualificationParam || undefined,
-          location_area_id: locationAreaIdParam || undefined,
-          expected_salary_min: expectedSalaryMinParam || undefined,
-          expected_salary_max: expectedSalaryMaxParam || undefined,
-          experience_min: experienceMinParam || undefined,
-          experience_max: experienceMaxParam || undefined,
-          skills: Array.isArray(skillsParam) && skillsParam.length ? skillsParam : undefined,
-          created_by: viaLinkChecked ? undefined : createdByParam || undefined,
-          created_by_is_null: viaLinkChecked ? true : undefined,
-          has_resume:
-            hasResumeParam === "true"
-              ? true
-              : hasResumeParam === "false"
-              ? false
-              : undefined,
-          has_photo:
-            hasPhotoParam === "true"
-              ? true
-              : hasPhotoParam === "false"
-              ? false
-              : undefined,
-          created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
-          created_to: createdToParam ? `${createdToParam}T23:59:59` : undefined,
-          is_active:
-            isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined,
-          sort_by: sortByParam || undefined,
-          order: orderParam || undefined,
-        });
-        console.log(result);
-        if (!active) return;
-
-        const items = Array.isArray(result?.items)
-          ? result.items
-          : Array.isArray(result?.data)
-          ? result.data
-          : Array.isArray(result)
-          ? result
-          : [];
-
-        const totalCount =
-          typeof result?.total === "number"
-            ? result.total
-            : typeof result?.count === "number"
-            ? result.count
-            : items.length;
-
-        setRows(items);
-        setTotal(totalCount);
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load candidates",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading candidates.",
-        });
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      active = false;
-    };
-  }, [page, filtersKey, refreshTick, pushToast]);
+    if (!candidatesQuery.isError) return;
+    pushToast({
+      title: "Failed to load candidates",
+      description:
+        (candidatesQuery.error && candidatesQuery.error.message) ||
+        "An error occurred while loading candidates.",
+    });
+  }, [candidatesQuery.isError, candidatesQuery.error, pushToast]);
 
   const columns = [
     {
@@ -873,7 +838,7 @@ function CandidatesPageInner() {
           ) : null}
 
           <div className="flex items-center justify-between gap-2 pt-1">
-            <div className="text-xs text-slate-500">{loading ? "Loading…" : null}</div>
+            <div className="text-xs text-slate-500">{loading ? <Spinner label="Loading" /> : null}</div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
               <span>Showing page {page}</span>
               <span className="h-1 w-1 rounded-full bg-slate-300" />
@@ -888,6 +853,7 @@ function CandidatesPageInner() {
         page={page}
         limit={PAGE_SIZE}
         total={total}
+        loading={loading}
         onPageChange={(nextPage) => {
           const params = new URLSearchParams(searchParamsString);
           params.set("page", String(nextPage));

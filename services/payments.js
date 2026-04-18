@@ -1,5 +1,4 @@
 import { api } from "./api";
-import { USE_MOCK_DATA } from "./mockData";
 import { stripEmpty, ensureObjectData } from "./formatters";
 
 function serializeQueryParams(params = {}) {
@@ -16,12 +15,6 @@ function serializeQueryParams(params = {}) {
 }
 
 export function paymentsLedger(params = {}) {
-  if (USE_MOCK_DATA) {
-    const page = Number(params.page) || 1;
-    const limit = Number(params.limit) || 20;
-    return Promise.resolve({ items: [], total: 0, page, limit });
-  }
-
   const resolvedParams = { ...params };
 
   if (resolvedParams.page != null) {

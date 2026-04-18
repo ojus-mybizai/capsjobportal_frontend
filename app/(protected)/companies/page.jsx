@@ -6,12 +6,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUIStore } from "@/stores/ui";
 import { useAuthStore } from "@/stores/auth";
 import { useMastersStore } from "@/stores/masters";
-import { deleteCompany, listCompanies, getPublicCompany } from "@/services/companies";
+import { getPublicCompany } from "@/services/companies";
+import { useCompaniesList, useDeleteCompany } from "@/hooks/useCompanies";
 import PaginatedTable from "@/components/table/PaginatedTable";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import StatusPill from "@/components/ui/StatusPill";
+import Spinner from "@/components/ui/Spinner";
 
 const PAGE_SIZE = 10;
 
@@ -32,11 +34,6 @@ function CompaniesPageInner() {
   const setPageMetadata = useUIStore((state) => state.setPageMetadata);
   const pushToast = useUIStore((state) => state.pushToast);
 
-  const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
-
   const qParam = searchParams.get("q") || "";
   const companyStatusParam = searchParams.get("company_status") || "";
   const verificationStatusParam =
@@ -54,23 +51,6 @@ function CompaniesPageInner() {
   const orderParam = searchParams.get("order") || "";
   const pageParamRaw = searchParams.get("page");
   const page = pageParamRaw ? Math.max(1, Number(pageParamRaw) || 1) : 1;
-
-  const filtersKey = [
-    qParam,
-    companyStatusParam,
-    verificationStatusParam,
-    categoryIdParam,
-    locationAreaIdParam,
-    createdByParam,
-    createdByIsNullParam,
-    emailParam,
-    contactNumberParam,
-    createdFromParam,
-    createdToParam,
-    isActiveParam,
-    sortByParam,
-    orderParam,
-  ].join("|");
 
   const [query, setQuery] = useState(qParam);
   const [email, setEmail] = useState(emailParam);
@@ -158,6 +138,7 @@ function CompaniesPageInner() {
   useEffect(() => {
     const t = setTimeout(() => {
       const next = (query || "").trim();
+      if (next === qParam) return;
       const params = new URLSearchParams(searchParamsString);
       if (next) params.set("q", next);
       else params.delete("q");
@@ -168,11 +149,12 @@ function CompaniesPageInner() {
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [query, router, pathname, searchParamsString]);
+  }, [query, qParam, router, pathname, searchParamsString]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       const next = (email || "").trim();
+      if (next === emailParam) return;
       const params = new URLSearchParams(searchParamsString);
       if (next) params.set("email", next);
       else params.delete("email");
@@ -182,11 +164,12 @@ function CompaniesPageInner() {
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [email, router, pathname, searchParamsString]);
+  }, [email, emailParam, router, pathname, searchParamsString]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       const next = (contactNumber || "").trim();
+      if (next === contactNumberParam) return;
       const params = new URLSearchParams(searchParamsString);
       if (next) params.set("contact_number", next);
       else params.delete("contact_number");
@@ -196,11 +179,12 @@ function CompaniesPageInner() {
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [contactNumber, router, pathname, searchParamsString]);
+  }, [contactNumber, contactNumberParam, router, pathname, searchParamsString]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       const next = (createdBy || "").trim();
+      if (next === createdByParam) return;
       const params = new URLSearchParams(searchParamsString);
       if (next) params.set("created_by", next);
       else params.delete("created_by");
@@ -210,7 +194,7 @@ function CompaniesPageInner() {
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => clearTimeout(t);
-  }, [createdBy, router, pathname, searchParamsString]);
+  }, [createdBy, createdByParam, router, pathname, searchParamsString]);
 
   function setParam(key, value) {
     const params = new URLSearchParams(searchParamsString);
@@ -264,6 +248,8 @@ function CompaniesPageInner() {
     if (key === "order") setParam("order", "");
   }
 
+  const deleteCompanyMutation = useDeleteCompany();
+
   async function handleDeleteCompany(company) {
     const id = company && company.id != null ? String(company.id) : "";
     if (!id) return;
@@ -274,12 +260,11 @@ function CompaniesPageInner() {
     if (!confirmed) return;
 
     try {
-      await deleteCompany(id);
+      await deleteCompanyMutation.mutateAsync(id);
       pushToast({
         title: "Company deleted",
         description: "The company was deleted successfully.",
       });
-      setRefreshTick(Date.now());
     } catch (error) {
       pushToast({
         title: "Failed to delete company",
@@ -314,72 +299,64 @@ function CompaniesPageInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
+  const filters = useMemo(
+    () => ({
+      page,
+      limit: PAGE_SIZE,
+      q: qParam || undefined,
+      company_status: companyStatusParam || undefined,
+      verification_status:
+        verificationStatusParam === ""
+          ? undefined
+          : verificationStatusParam === "true"
+          ? true
+          : false,
+      category_id: categoryIdParam || undefined,
+      location_area_id: locationAreaIdParam || undefined,
+      created_by: viaLinkChecked ? undefined : createdByParam || undefined,
+      created_by_is_null: viaLinkChecked ? true : undefined,
+      email: emailParam || undefined,
+      contact_number: contactNumberParam || undefined,
+      created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
+      created_to: createdToParam ? `${createdToParam}T23:59:59` : undefined,
+      is_active:
+        isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined,
+      sort_by: sortByParam || undefined,
+      order: orderParam || undefined,
+    }),
+    [
+      page,
+      qParam,
+      companyStatusParam,
+      verificationStatusParam,
+      categoryIdParam,
+      locationAreaIdParam,
+      viaLinkChecked,
+      createdByParam,
+      emailParam,
+      contactNumberParam,
+      createdFromParam,
+      createdToParam,
+      isActiveParam,
+      sortByParam,
+      orderParam,
+    ]
+  );
+
+  const companiesQuery = useCompaniesList(filters);
+  const rows = companiesQuery.data?.items ?? [];
+  const total = companiesQuery.data?.total ?? 0;
+  const loading = companiesQuery.isFetching;
+
   useEffect(() => {
-    let active = true;
-    async function load() {
-      setLoading(true);
-      try {
-        const result = await listCompanies({
-          page,
-          limit: PAGE_SIZE,
-          q: qParam || undefined,
-          company_status: companyStatusParam || undefined,
-          verification_status:
-            verificationStatusParam === ""
-              ? undefined
-              : verificationStatusParam === "true"
-              ? true
-              : false,
-          category_id: categoryIdParam || undefined,
-          location_area_id: locationAreaIdParam || undefined,
-          created_by: viaLinkChecked ? undefined : createdByParam || undefined,
-          created_by_is_null: viaLinkChecked ? true : undefined,
-          email: emailParam || undefined,
-          contact_number: contactNumberParam || undefined,
-          created_from: createdFromParam ? `${createdFromParam}T00:00:00` : undefined,
-          created_to: createdToParam ? `${createdToParam}T23:59:59` : undefined,
-          is_active:
-            isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined,
-          sort_by: sortByParam || undefined,
-          order: orderParam || undefined,
-        });
-        if (!active) return;
-
-        const items = Array.isArray(result?.items)
-          ? result.items
-          : Array.isArray(result?.data)
-          ? result.data
-          : Array.isArray(result)
-          ? result
-          : [];
-
-        const totalCount =
-          typeof result?.total === "number"
-            ? result.total
-            : typeof result?.count === "number"
-            ? result.count
-            : items.length;
-
-        setRows(items);
-        setTotal(totalCount);
-      } catch (error) {
-        if (!active) return;
-        pushToast({
-          title: "Failed to load companies",
-          description:
-            (error && error.message) ||
-            "An error occurred while loading companies.",
-        });
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      active = false;
-    };
-  }, [page, filtersKey, refreshTick, pushToast]);
+    if (!companiesQuery.isError) return;
+    pushToast({
+      title: "Failed to load companies",
+      description:
+        (companiesQuery.error && companiesQuery.error.message) ||
+        "An error occurred while loading companies.",
+    });
+  }, [companiesQuery.isError, companiesQuery.error, pushToast]);
 
   const columns = [
     { key: "name", label: "Name" },
@@ -653,7 +630,7 @@ function CompaniesPageInner() {
           ) : null}
 
           <div className="flex items-center justify-between gap-2 pt-1">
-            <div className="text-xs text-slate-500">{loading ? "Loading…" : null}</div>
+            <div className="text-xs text-slate-500">{loading ? <Spinner label="Loading" /> : null}</div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
               <span>Showing page {page}</span>
               <span className="h-1 w-1 rounded-full bg-slate-300" />
@@ -669,6 +646,7 @@ function CompaniesPageInner() {
         page={page}
         limit={PAGE_SIZE}
         total={total}
+        loading={loading}
         onPageChange={(nextPage) => {
           const params = new URLSearchParams(searchParamsString);
           params.set("page", String(nextPage));
