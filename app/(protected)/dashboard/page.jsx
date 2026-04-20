@@ -244,6 +244,10 @@ function DashboardPageInner() {
   const rangeParam = searchParams.get("range") || "";
   const startDateParam = searchParams.get("start_date") || "";
   const endDateParam = searchParams.get("end_date") || "";
+  const dateParams = {
+    ...(startDateParam ? { start_date: startDateParam } : {}),
+    ...(endDateParam ? { end_date: endDateParam } : {}),
+  };
   const endOfMonth = dayjs().endOf("month").format("YYYY-MM-DD");
   const selectedRange = rangeParam || "this_month";
   const [dueBefore, setDueBefore] = useState(endOfMonth);
@@ -282,8 +286,9 @@ function DashboardPageInner() {
     const totals = payload.totals || {};
     setPendingDues({
       total_due: Number(totals.total_due) || 0,
-      candidate_due: Number(totals.candidate_due) || 0,
       company_due: Number(totals.company_due) || 0,
+      placement_income_due: Number(totals.placement_income_due) || 0,
+      joc_due: Number(totals.joc_due) || 0,
       items,
     });
   }
@@ -401,10 +406,11 @@ function DashboardPageInner() {
   const intRejectedEmployer = safeNumber(summary?.interviews?.REJECTED_BY_EMPLOYER);
   const intRejectedCandidate = safeNumber(summary?.interviews?.REJECTED_BY_CANDIDATE);
 
-  const financeCompanyPayments = safeNumber(summary?.finance?.company_payments);
-  const financeCandidateFees = safeNumber(summary?.finance?.candidate_fees_received);
-  const financePlacementIncome = safeNumber(summary?.finance?.placement_income);
-  const financeTotalIncome = safeNumber(summary?.finance?.total_income);
+  const financeCompanyFee = safeNumber(summary?.finance?.company_fee);
+  const financeRegistrationFee = safeNumber(summary?.finance?.registration_fee);
+  const financePlacementIncomeFee = safeNumber(summary?.finance?.placement_income_fee);
+  const financeJocFee = safeNumber(summary?.finance?.joc_fee);
+  const financeTotalIncome = safeNumber(summary?.finance?.total);
 
   const companiesStatusChart = [
     { label: "Paid", status: "PAID", value: companiesPaid, color: "#16a34a" },
@@ -674,45 +680,34 @@ function DashboardPageInner() {
         <div className="mb-4 text-base font-semibold tracking-wide text-slate-900">
           Finance Summary
         </div>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <FinanceTile
-            title="Company Payments"
-            value={financeCompanyPayments}
+            title="Company Fee"
+            value={financeCompanyFee}
             loading={loadingSummary}
             color="#f97316"
-            onClick={() =>
-              navigateTo("/payments", {
-                source: "COMPANY_PAYMENT",
-                ...dateParams,
-                limit: 50,
-              })
-            }
-          />
-          <FinanceTile
-            title="Candidate Fees"
-            value={financeCandidateFees}
-            loading={loadingSummary}
-            color="#10b981"
-            onClick={() =>
-              navigateTo("/payments", {
-                source: "CANDIDATE_PAYMENT",
-                ...dateParams,
-                limit: 50,
-              })
-            }
+            onClick={() => navigateTo("/payments", { source: "COMPANY_PAYMENT", limit: 50 })}
           />
           <FinanceTile
             title="Placement Income"
-            value={financePlacementIncome}
+            value={financePlacementIncomeFee}
             loading={loadingSummary}
             color="#6366f1"
-            onClick={() =>
-              navigateTo("/payments", {
-                source: "PLACEMENT_INCOME",
-                ...dateParams,
-                limit: 50,
-              })
-            }
+            onClick={() => navigateTo("/payments", { source: "PLACEMENT_INCOME", limit: 50 })}
+          />
+          <FinanceTile
+            title="JOC Fee"
+            value={financeJocFee}
+            loading={loadingSummary}
+            color="#fbbf24"
+            onClick={() => navigateTo("/candidates", { status: "JOC" })}
+          />
+          <FinanceTile
+            title="Registration Fee"
+            value={financeRegistrationFee}
+            loading={loadingSummary}
+            color="#10b981"
+            onClick={() => navigateTo("/payments", { source: "CANDIDATE_PAYMENT", limit: 50 })}
           />
           <FinanceTile
             title="Total Income"
@@ -720,12 +715,7 @@ function DashboardPageInner() {
             loading={loadingSummary}
             color="#0f172a"
             highlight
-            onClick={() =>
-              navigateTo("/payments", {
-                ...dateParams,
-                limit: 50,
-              })
-            }
+            onClick={() => navigateTo("/payments", { limit: 50 })}
           />
         </div>
       </section>
@@ -751,40 +741,35 @@ function DashboardPageInner() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <FinanceTile
+            title="Company Due"
+            value={pendingDues?.company_due}
+            loading={loadingPendingDues}
+            color="#f97316"
+            onClick={() => navigateTo("/companies", { company_status: "PAID" })}
+          />
+          <FinanceTile
+            title="Placement Income Due"
+            value={pendingDues?.placement_income_due}
+            loading={loadingPendingDues}
+            color="#6366f1"
+            onClick={() => navigateTo("/payments/pending", { due_before: dueBefore, source: "PLACEMENT_INCOME_PENDING" })}
+          />
+          <FinanceTile
+            title="JOC Due"
+            value={pendingDues?.joc_due}
+            loading={loadingPendingDues}
+            color="#fbbf24"
+            onClick={() => navigateTo("/candidates", { status: "JOC" })}
+          />
           <FinanceTile
             title="Total Due"
             value={pendingDues?.total_due}
             loading={loadingPendingDues}
             color="#f43f5e"
             highlight
-            onClick={() =>
-              navigateTo("/payments/pending", {
-                due_before: dueBefore,
-              })
-            }
-          />
-          <FinanceTile
-            title="Candidate Due"
-            value={pendingDues?.candidate_due}
-            loading={loadingPendingDues}
-            color="#10b981"
-            onClick={() =>
-              navigateTo("/payments/pending", {
-                due_before: dueBefore,
-              })
-            }
-          />
-          <FinanceTile
-            title="Company Due"
-            value={pendingDues?.company_due}
-            loading={loadingPendingDues}
-            color="#f97316"
-            onClick={() =>
-              navigateTo("/payments/pending", {
-                due_before: dueBefore,
-              })
-            }
+            onClick={() => navigateTo("/payments/pending", { due_before: dueBefore })}
           />
         </div>
       </section>
