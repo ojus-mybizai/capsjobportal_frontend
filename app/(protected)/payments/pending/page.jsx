@@ -90,7 +90,7 @@ function PendingPageInner() {
   const dueBeforeParam = searchParams.get("due_before") || endOfMonth;
   const [dueBefore, setDueBefore] = useState(dueBeforeParam);
   const [loading, setLoading] = useState(false);
-  const [pending, setPending] = useState({ total_due: 0, candidate_due: 0, company_due: 0, items: [] });
+  const [pending, setPending] = useState({ total_due: 0, joc_due: 0, placement_income_due: 0, items: [] });
 
   // Modal states
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -136,11 +136,11 @@ function PendingPageInner() {
           (acc, it) => {
             const bal = Number(it?.balance) || 0;
             acc.total_due += bal;
-            if (it?.source === "JOC_FEE_PENDING") acc.candidate_due += bal;
-            else acc.company_due += bal;
+            if (it?.source === "JOC_FEE_PENDING") acc.joc_due += bal;
+            else acc.placement_income_due += bal;
             return acc;
           },
-          { total_due: 0, candidate_due: 0, company_due: 0 }
+          { total_due: 0, joc_due: 0, placement_income_due: 0 }
         );
         if (!active) return;
         setPending({ ...totals, items });
@@ -150,7 +150,7 @@ function PendingPageInner() {
           title: "Failed to load pending dues",
           description: (error && error.message) || "Could not load pending dues.",
         });
-        setPending({ total_due: 0, candidate_due: 0, company_due: 0, items: [] });
+        setPending({ total_due: 0, joc_due: 0, placement_income_due: 0, items: [] });
       } finally {
         if (active) setLoading(false);
       }
@@ -238,11 +238,11 @@ function PendingPageInner() {
         (acc, it) => {
           const bal = Number(it?.balance) || 0;
           acc.total_due += bal;
-          if (it?.source === "JOC_FEE_PENDING") acc.candidate_due += bal;
-          else acc.company_due += bal;
+          if (it?.source === "JOC_FEE_PENDING") acc.joc_due += bal;
+          else acc.placement_income_due += bal;
           return acc;
         },
-        { total_due: 0, candidate_due: 0, company_due: 0 }
+        { total_due: 0, joc_due: 0, placement_income_due: 0 }
       );
       setPending({ ...totals, items });
     } catch (error) {
@@ -291,11 +291,11 @@ function PendingPageInner() {
         (acc, it) => {
           const bal = Number(it?.balance) || 0;
           acc.total_due += bal;
-          if (it?.source === "JOC_FEE_PENDING") acc.candidate_due += bal;
-          else acc.company_due += bal;
+          if (it?.source === "JOC_FEE_PENDING") acc.joc_due += bal;
+          else acc.placement_income_due += bal;
           return acc;
         },
-        { total_due: 0, candidate_due: 0, company_due: 0 }
+        { total_due: 0, joc_due: 0, placement_income_due: 0 }
       );
       setPending({ ...totals, items });
     } catch (error) {
@@ -361,11 +361,11 @@ function PendingPageInner() {
         (acc, it) => {
           const bal = Number(it?.balance) || 0;
           acc.total_due += bal;
-          if (it?.source === "JOC_FEE_PENDING") acc.candidate_due += bal;
-          else acc.company_due += bal;
+          if (it?.source === "JOC_FEE_PENDING") acc.joc_due += bal;
+          else acc.placement_income_due += bal;
           return acc;
         },
-        { total_due: 0, candidate_due: 0, company_due: 0 }
+        { total_due: 0, joc_due: 0, placement_income_due: 0 }
       );
       setPending({ ...totals, items });
     } catch (error) {
@@ -404,8 +404,8 @@ function PendingPageInner() {
 
       <div className="grid gap-3 md:grid-cols-3">
         <FinanceTile title="Total Due" value={pending.total_due} loading={loading} highlight />
-        <FinanceTile title="Candidate Due" value={pending.candidate_due} loading={loading} />
-        <FinanceTile title="Company Due" value={pending.company_due} loading={loading} />
+        <FinanceTile title="JOC Due" value={pending.joc_due} loading={loading} />
+        <FinanceTile title="Placement Income Due" value={pending.placement_income_due} loading={loading} />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white ring-1 ring-slate-200/70">
