@@ -286,7 +286,6 @@ function DashboardPageInner() {
     const totals = payload.totals || {};
     setPendingDues({
       total_due: Number(totals.total_due) || 0,
-      company_due: Number(totals.company_due) || 0,
       placement_income_due: Number(totals.placement_income_due) || 0,
       joc_due: Number(totals.joc_due) || 0,
       items,
@@ -423,11 +422,14 @@ function DashboardPageInner() {
     { label: "Dropped", status: "DROPPED", value: jobsDropped, color: "#f87171" },
   ];
 
+  const candNotInterested = safeNumber(summary?.candidates?.NOT_INTERESTED);
+
   const candidatesStatusChart = [
     { label: "Registered", status: "REGISTERED", value: candRegistered, color: "#60a5fa" },
     { label: "CAPS", status: "CAPS", value: candCaps, color: "#34d399" },
     { label: "JOC", status: "JOC", value: candJoc, color: "#fbbf24" },
     { label: "Free", status: "FREE", value: candFree, color: "#cbd5e1" },
+    { label: "Not Interested", status: "NOT_INTERESTED", value: candNotInterested, color: "#f87171" },
   ];
 
   const interviewsStatusChart = [
@@ -741,14 +743,7 @@ function DashboardPageInner() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <FinanceTile
-            title="Company Due"
-            value={pendingDues?.company_due}
-            loading={loadingPendingDues}
-            color="#f97316"
-            onClick={() => navigateTo("/companies", { company_status: "PAID" })}
-          />
+        <div className="grid gap-3 sm:grid-cols-3">
           <FinanceTile
             title="Placement Income Due"
             value={pendingDues?.placement_income_due}

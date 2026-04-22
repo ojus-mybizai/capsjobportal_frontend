@@ -653,6 +653,7 @@ function CandidatesPageInner() {
                 <option value="CAPS">CAPS</option>
                 <option value="JOC">JOC</option>
                 <option value="FREE">FREE</option>
+                <option value="NOT_INTERESTED">NOT INTERESTED</option>
               </Select>
             </div>
           </div>

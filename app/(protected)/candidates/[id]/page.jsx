@@ -54,6 +54,7 @@ export default function CandidateDetailPage() {
 
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusValue, setStatusValue] = useState("REGISTERED");
+  const [statusRemark, setStatusRemark] = useState("");
   const [jocTotalFee, setJocTotalFee] = useState("");
   const [jocPaymentAmount, setJocPaymentAmount] = useState("");
   const [jocPaymentDate, setJocPaymentDate] = useState("");
@@ -194,9 +195,11 @@ export default function CandidateDetailPage() {
 
   const allowedNextStatuses = useMemo(() => {
     const current = (candidate?.status || "REGISTERED").toUpperCase();
-    if (current === "FREE") return ["REGISTERED", "JOC"];
-    if (current === "REGISTERED") return ["JOC", "CAPS"];
-    if (current === "JOC") return ["CAPS"];
+    if (current === "NOT_INTERESTED") return ["REGISTERED"];
+    if (current === "FREE") return ["REGISTERED", "JOC", "NOT_INTERESTED"];
+    if (current === "REGISTERED") return ["JOC", "CAPS", "NOT_INTERESTED"];
+    if (current === "JOC") return ["CAPS", "NOT_INTERESTED"];
+    if (current === "CAPS") return ["NOT_INTERESTED"];
     return [];
   }, [candidate]);
 
@@ -329,6 +332,7 @@ export default function CandidateDetailPage() {
     setJocPaymentAmount("");
     setJocPaymentDate("");
     setJocPaymentRemarks("");
+    setStatusRemark("");
     setJocDueDate(
       candidate?.fee_structure && candidate.fee_structure.due_date
         ? toDateInputValue(candidate.fee_structure.due_date)
@@ -343,6 +347,13 @@ export default function CandidateDetailPage() {
       pushToast({
         title: "Status not allowed",
         description: "This transition is not permitted from the current status.",
+      });
+      return;
+    }
+    if (!statusRemark.trim()) {
+      pushToast({
+        title: "Remark required",
+        description: "Please add a remark explaining this status change.",
       });
       return;
     }
@@ -376,6 +387,7 @@ export default function CandidateDetailPage() {
         statusValue === "JOC"
           ? {
               status: statusValue,
+              remarks: statusRemark.trim(),
               fee_structure: {
                 total_fee: Number(jocTotalFee),
                 due_date: jocDueDate ? new Date(jocDueDate).toISOString() : undefined,
@@ -386,7 +398,7 @@ export default function CandidateDetailPage() {
                 remarks: jocPaymentRemarks || undefined,
               },
             }
-          : { status: statusValue };
+          : { status: statusValue, remarks: statusRemark.trim() };
 
       await changeStatusMutation.mutateAsync({ id, payload });
       pushToast({
@@ -928,6 +940,15 @@ export default function CandidateDetailPage() {
               {candidate.address || "-"}
             </div>
           </div>
+
+          {candidate.notes ? (
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-slate-600">Notes / Status history</div>
+              <div className="mt-1 whitespace-pre-wrap rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-xs text-slate-700 leading-5">
+                {candidate.notes}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -1336,21 +1357,30 @@ export default function CandidateDetailPage() {
                 </div>
               </div>
               <div className="space-y-1 text-[11px]">
-                <label className="block font-semibold text-slate-700">Remarks</label>
+                <label className="block font-semibold text-slate-700">Payment remarks (optional)</label>
                 <input
                   type="text"
                   value={jocPaymentRemarks}
                   onChange={(e) => setJocPaymentRemarks(e.target.value)}
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus-border-[var(--accent)]"
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-2 py-1 text-[11px] outline-none ring-0 focus:border-[var(--accent)]"
                   placeholder="Optional"
                 />
               </div>
             </div>
-          ) : (
-            <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-xs text-slate-700">
-              Status changes should follow your business flow. Avoid changing historical registration context.
-            </div>
-          )}
+          ) : null}
+
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-slate-700">
+              Reason / Remark <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={2}
+              value={statusRemark}
+              onChange={(e) => setStatusRemark(e.target.value)}
+              placeholder="Required — briefly explain this status change"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-3 py-2 text-xs outline-none focus:border-[var(--accent)] resize-none"
+            />
+          </div>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setStatusModalOpen(false)}>
@@ -1361,6 +1391,7 @@ export default function CandidateDetailPage() {
               variant="outline"
               disabled={
                 statusSubmitting ||
+                !statusRemark.trim() ||
                 (statusValue === "JOC" &&
                   (!Number.isFinite(Number(jocTotalFee)) ||
                     Number(jocTotalFee) <= 0 ||
