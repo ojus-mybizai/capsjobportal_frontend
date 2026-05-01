@@ -25,9 +25,9 @@ function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const login = useAuthStore((state) => state.login);
-  const loading = useAuthStore((state) => state.loading);
   const pushToast = useUIStore((state) => state.pushToast);
   const [serverError, setServerError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
@@ -40,6 +40,7 @@ function LoginPageInner() {
 
   async function onSubmit(values) {
     setServerError("");
+    setIsSubmitting(true);
     try {
       await login(values.email, values.password);
       pushToast({
@@ -57,6 +58,8 @@ function LoginPageInner() {
         title: "Login failed",
         description: message,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -118,10 +121,10 @@ function LoginPageInner() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={isSubmitting}
             className="flex w-full items-center justify-center rounded-md bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2493c3] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
       </div>

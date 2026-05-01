@@ -409,7 +409,7 @@ function DashboardPageInner() {
   const financeRegistrationFee = safeNumber(summary?.finance?.registration_fee);
   const financePlacementIncomeFee = safeNumber(summary?.finance?.placement_income_fee);
   const financeJocFee = safeNumber(summary?.finance?.joc_fee);
-  const financeTotalIncome = safeNumber(summary?.finance?.total);
+  const financeTotalIncome = financeCompanyFee + financePlacementIncomeFee + financeJocFee + financeRegistrationFee;
 
   const companiesStatusChart = [
     { label: "Paid", status: "PAID", value: companiesPaid, color: "#16a34a" },
@@ -702,14 +702,14 @@ function DashboardPageInner() {
             value={financeJocFee}
             loading={loadingSummary}
             color="#fbbf24"
-            onClick={() => navigateTo("/candidates", { status: "JOC" })}
+            onClick={() => navigateTo("/payments", { source: "JOC_FEE", limit: 50 })}
           />
           <FinanceTile
             title="Registration Fee"
             value={financeRegistrationFee}
             loading={loadingSummary}
             color="#10b981"
-            onClick={() => navigateTo("/payments", { source: "CANDIDATE_PAYMENT", limit: 50 })}
+            onClick={() => navigateTo("/payments", { source: "REGISTRATION_FEE", limit: 50 })}
           />
           <FinanceTile
             title="Total Income"
